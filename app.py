@@ -26,13 +26,13 @@ if 'db_rancho' not in st.session_state:
     st.session_state.db_rancho = pd.DataFrame(columns=['ID', 'Empurrador', 'Data', 'Tipo', 'Valor'])
 
 #----------------------------------#
-# BARRA LATERAL (MENU COMPLETO)
+# BARRA LATERAL (MENU)
 #----------------------------------#
 st.sidebar.title("🚢 Menu de Gestão")
 aba = st.sidebar.radio("Navegação", ["⛽ Combustível", "🛒 Rancho", "📊 Dashboard"])
 
 #----------------------------------#
-# TELA: COMBUSTÍVEL (CÁLCULOS AUTOMÁTICOS)
+# TELA: COMBUSTÍVEL
 #----------------------------------#
 if aba == "⛽ Combustível":
     st.header("⛽ Gestão de Combustível")
@@ -50,11 +50,10 @@ if aba == "⛽ Combustível":
         saldo_ant = st.number_input("SALDO ANTERIOR (L)", min_value=0.0, step=1.0)
         qtd_sol = st.number_input("QTD. SOLICITADA (L)", min_value=0.0, step=1.0)
         
-        # SOMA AUTOMÁTICA DURANTE A DIGITAÇÃO
-        total_t = saldo_ant + qtd_sol
-        st.info(f"📊 TOTAL NO TANQUE: {total_t:,.2f} L")
-        
-        odm_z = st.number_input("ODM ZARPE", value=0.0, step=0.1)
+        # --- AJUSTE SOLICITADO ---
+        # ODM ZARPE AGORA É A SOMA AUTOMÁTICA
+        odm_z = saldo_ant + qtd_sol
+        st.success(f"⚓ ODM ZARPE (SOMA): {odm_z:,.2f} L")
         
     with col3:
         plano_h = st.number_input("PLANO HORAS", value=0.0, step=0.1)
@@ -66,24 +65,24 @@ if aba == "⛽ Combustível":
         h_mca = st.number_input("H MCA", value=0.0, step=0.1)
         transf_balsa = st.number_input("TRANSF. BALSA", value=0.0, step=0.1)
         
-        # FÓRMULA AUTOMÁTICA: ODM FIM = G-(H*I)-(J*K)-(L*7)-M
+        # FÓRMULA AUTOMÁTICA DO ODM FIM USANDO O NOVO ODM ZARPE (SOMA)
         odm_fim = odm_z - (plano_h * lh_rpm) - (h_manobra * lh_manobra) - (h_mca * 7) - transf_balsa
         
-        st.error(f"📉 ODM FINAL CALCULADO: {odm_fim:,.2f}")
+        st.error(f"📉 ODM FINAL: {odm_fim:,.2f}")
         
         valor_nf = st.number_input("VALOR TOTAL R$ (Nota Fiscal)", min_value=0.0)
         local = st.text_input("LOCAL")
 
     #----------------------------------#
-    # BOTÃO SALVAR (LANÇAMENTO)
+    # BLOCO: BOTÃO SALVAR
     #----------------------------------#
-    if st.button("✅ SALVAR NOVO REGISTRO", use_container_width=True, type="primary"):
+    if st.button("✅ SALVAR REGISTRO", use_container_width=True, type="primary"):
         nova_l = pd.DataFrame([{
             "SEL": False, 
             "ID": len(st.session_state.db_comb), 
             "Empurrador": emp, 
             "Data": data_sol.strftime('%d/%m/%Y'), 
-            "Litros": total_t, 
+            "Litros": odm_z, # Aqui salvamos a soma (Zarpe)
             "ODM_Fim": odm_fim, 
             "Valor_NF": valor_nf
         }])
@@ -91,10 +90,9 @@ if aba == "⛽ Combustível":
         st.rerun()
 
     #----------------------------------#
-    # TABELA COM QUADRADO (SEL)
+    # BLOCO: TABELA COM SEL (QUADRADO)
     #----------------------------------#
     st.divider()
-    st.subheader("📋 Tabela de Registros")
     if not st.session_state.db_comb.empty:
         tabela_editavel = st.data_editor(
             st.session_state.db_comb,
@@ -102,10 +100,9 @@ if aba == "⛽ Combustível":
             disabled=["ID", "Empurrador", "Data", "Litros", "ODM_Fim", "Valor_NF"],
             hide_index=True, use_container_width=True, key="editor_comb"
         )
-        # (Lógica de editar/excluir baseada no SEL marcada abaixo)
 
 #----------------------------------#
-# TELA: RANCHO
+# TELA: RANCHO (MANTIDA)
 #----------------------------------#
 elif aba == "🛒 Rancho":
     st.header("🛒 Gestão de Rancho")
@@ -118,11 +115,4 @@ elif aba == "🛒 Rancho":
             tipo_r = st.selectbox("TIPO", ["Rancho Mensal", "Complemento"])
             valor_r = st.number_input("VALOR R$", min_value=0.0)
         if st.form_submit_button("✅ Salvar"):
-            st.success("Salvo!")
-
-#----------------------------------#
-# TELA: DASHBOARD
-#----------------------------------#
-elif aba == "📊 Dashboard":
-    st.header("📊 Dashboard")
-    st.write("Dados para análise.")
+            st.success("Pedido de Rancho Salvo!")
