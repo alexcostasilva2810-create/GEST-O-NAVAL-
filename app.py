@@ -19,14 +19,16 @@ st.sidebar.title("🚢 Menu de Gestão")
 aba = st.sidebar.radio("Navegação", ["⛽ Abastecimento", "📝 Calculo de mémoria", "🛒 Rancho", "📊 Dashboard"])
 
 #---------------------------------------------------------#
-# BLOCO 1 - ABASTECIMENTO (REFORMULADO)
+# BLOCO 1 - ABASTECIMENTO (VERSÃO INCREMENTADA)
 #---------------------------------------------------------#
 if aba == "⛽ Abastecimento":
     st.header("⛽ Tabela de Abastecimento e Movimentação")
     
     if not st.session_state.db_comb.empty:
         df_abast = []
+        # Criamos o ID baseado no índice da linha + 1000 para ficar profissional
         for index, row in st.session_state.db_comb.iterrows():
+            
             # Tratar Origem e Destino pelo "X"
             trecho = str(row.get('Local', '')).upper()
             origem_auto, destino_auto = (trecho.split('X', 1) + [""])[:2] if 'X' in trecho else (trecho, "")
@@ -39,13 +41,18 @@ if aba == "⛽ Abastecimento":
                 lh_rpm_calc = row['Queima_Ida']
 
             df_abast.append({
-                "DATA SOLICITAÇÃO": datetime.now().strftime('%d/%m/%Y'), # Data de hoje em BR
+                "ID": 1001 + index,  # ID Único para cada registro
+                "DATA SOLICITAÇÃO": row['Data'], # Puxa a data que foi lançada na memória
+                "DATA ENTREGA": "",              # Manual
                 "SOLICITANTE": "ALEX",
                 "EMPURRADOR": row['Empurrador'],
+                "CICLO": "",                     # Manual
                 "MÊS/ANO": row['Mes_Ano'],
                 "ORIGEM": origem_auto.strip(),
                 "DESTINO": destino_auto.strip(),
+                "LOCAL ABAST.": "",              # Manual
                 "ODM ZARPE": row['ODM_Zarpe_Ida'],
+                "ODM COMPRA": row.get('ODM_Compra_Ida', 0.0), # Puxa automático da IDA
                 "PLANO HORAS": h_total,
                 "L/H RPM": round(lh_rpm_calc, 2),
                 "H. MANOBRA": row['H_Mano_Ida'] + row['H_Mano_Volta'],
@@ -54,16 +61,24 @@ if aba == "⛽ Abastecimento":
                 "ODM FIM": row['ODM_Fim_Final']
             })
 
-        # Exibição com formatação de números
+        # Exibição com Colunas Editáveis (DATA ENTREGA, LOCAL ABAST, CICLO)
         st.data_editor(
             pd.DataFrame(df_abast), 
             use_container_width=True, 
             hide_index=True, 
-            key="view_abast"
+            column_config={
+                "ID": st.column_config.NumberColumn("ID", help="Número de registro único"),
+                "DATA ENTREGA": st.column_config.TextColumn("DATA ENTREGA", help="Digite a data: DD/MM/YY"),
+                "LOCAL ABAST.": st.column_config.TextColumn("LOCAL ABAST."),
+                "CICLO": st.column_config.TextColumn("CICLO"),
+                "ODM ZARPE": st.column_config.NumberColumn(format="%.0f"),
+                "ODM COMPRA": st.column_config.NumberColumn(format="%.0f"),
+                "ODM FIM": st.column_config.NumberColumn(format="%.0f"),
+            },
+            key="view_abast_v2"
         )
     else:
         st.info("Aguardando lançamentos no Cálculo de Memória...")
-
 #---------------------------------------------------------#
 # BLOCO 2 - CALCULO DE MÉMORIA (DATA BR NO CALENDÁRIO)
 #---------------------------------------------------------#
