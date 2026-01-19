@@ -32,12 +32,12 @@ st.sidebar.title("🚢 Menu de Gestão")
 aba = st.sidebar.radio("Navegação", ["⛽ Combustível", "🛒 Rancho", "📊 Dashboard"])
 
 #----------------------------------#
-# TELA: COMBUSTÍVEL
+# TELA: COMBUSTÍVEL (EDIÇÃO DIRETA NA TABELA)
 #----------------------------------#
 if aba == "⛽ Combustível":
     st.header("⛽ Gestão de Combustível")
 
-    st.subheader("📝 Lançamento e Edição")
+    st.subheader("📝 Lançamento")
     
     col1, col2, col3, col4 = st.columns(4)
     with col1:
@@ -49,10 +49,7 @@ if aba == "⛽ Combustível":
     with col2:
         saldo_ant = st.number_input("SALDO ANTERIOR (L)", min_value=0.0, step=1.0)
         qtd_sol = st.number_input("QTD. SOLICITADA (L)", min_value=0.0, step=1.0)
-        
-        # --- AJUSTE SOLICITADO ---
-        # ODM ZARPE AGORA É A SOMA AUTOMÁTICA
-        odm_z = saldo_ant + qtd_sol
+        odm_z = saldo_ant + qtd_sol # SOMA AUTOMÁTICA
         st.success(f"⚓ ODM ZARPE (SOMA): {odm_z:,.2f} L")
         
     with col3:
@@ -64,14 +61,58 @@ if aba == "⛽ Combustível":
     with col4:
         h_mca = st.number_input("H MCA", value=0.0, step=0.1)
         transf_balsa = st.number_input("TRANSF. BALSA", value=0.0, step=0.1)
-        
-        # FÓRMULA AUTOMÁTICA DO ODM FIM USANDO O NOVO ODM ZARPE (SOMA)
         odm_fim = odm_z - (plano_h * lh_rpm) - (h_manobra * lh_manobra) - (h_mca * 7) - transf_balsa
-        
         st.error(f"📉 ODM FINAL: {odm_fim:,.2f}")
-        
         valor_nf = st.number_input("VALOR TOTAL R$ (Nota Fiscal)", min_value=0.0)
         local = st.text_input("LOCAL")
+
+    # BOTÃO SALVAR NOVO
+    if st.button("✅ SALVAR NOVO REGISTRO", use_container_width=True, type="primary"):
+        nova_l = pd.DataFrame([{
+            "SEL": False, "Empurrador": emp, "Data": data_sol.strftime('%d/%m/%Y'), 
+            "Saldo_Ant": saldo_ant, "Qtd_Sol": qtd_sol, "ODM_Zarpe": odm_z,
+            "Plano_H": plano_h, "LH_RPM": lh_rpm, "H_Manobra": h_manobra,
+            "LH_Manobra": lh_manobra, "H_MCA": h_mca, "Transf": transf_balsa,
+            "ODM_Fim": odm_fim, "Valor_NF": valor_nf, "Local": local
+        }])
+        st.session_state.db_comb = pd.concat([st.session_state.db_comb, nova_l], ignore_index=True)
+        st.rerun()
+
+    #----------------------------------#
+    # TABELA COM TODAS AS COLUNAS E EDIÇÃO AO MARCAR
+    #----------------------------------#
+    st.divider()
+    st.subheader("📋 Tabela de Registros (Marque SEL para editar a linha)")
+
+    if not st.session_state.db_comb.empty:
+        # Definimos quais colunas ficam travadas e quais liberam quando marcar
+        # Se SEL for falso, tudo fica travado. Se SEL for verdadeiro, libera.
+        
+        # Criamos a tabela interativa
+        # O segredo aqui é que o st.data_editor salva automaticamente ao desmarcar
+        tabela_editada = st.data_editor(
+            st.session_state.db_comb,
+            use_container_width=True,
+            hide_index=True,
+            column_config={
+                "SEL": st.column_config.CheckboxColumn("SEL", default=False),
+                "Valor_NF": st.column_config.NumberColumn("Valor R$", format="R$ %.2f"),
+                "ODM_Fim": st.column_config.NumberColumn("ODM Final", disabled=True)
+            },
+            key="editor_direto"
+        )
+
+        # Se houver mudança na tabela (ao desmarcar o SEL), atualizamos o banco
+        if not tabela_editada.equals(st.session_state.db_comb):
+            st.session_state.db_comb = tabela_editada
+            st.toast("Alteração salva automaticamente!", icon="💾")
+            
+        # Botão para excluir caso precise
+        if st.button("🗑️ Excluir Linhas Marcadas"):
+            st.session_state.db_comb = st.session_state.db_comb[st.session_state.db_comb["SEL"] == False]
+            st.rerun()
+    else:
+        st.info("Aguardando lançamentos...")
 
     #----------------------------------#
     # BLOCO: BOTÃO SALVAR
