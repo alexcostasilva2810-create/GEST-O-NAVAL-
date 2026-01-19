@@ -9,7 +9,6 @@ st.set_page_config(page_title="Gestão Integrada Naval", layout="wide")
 
 empurradores_lista = ["ANGELO", "ANGICO", "AROEIRA", "BRENO", "CANJERANA", "CUMARU", "IPE", "SAMAUMA", "JACARANDA", "LUIZ FELIPE", "QUARUBA", "TIMBORANA", "JATOBA"]
 
-# BANCO DE DADOS UNIFICADO
 if 'db_comb' not in st.session_state:
     st.session_state.db_comb = pd.DataFrame()
 
@@ -40,8 +39,7 @@ if aba == "⛽ Abastecimento":
                 lh_rpm_calc = row['Queima_Ida']
 
             df_abast.append({
-                "SEL": False,
-                "DATA SOLICITAÇÃO": datetime.now().strftime('%d/%m/%Y'),
+                "DATA SOLICITAÇÃO": datetime.now().strftime('%d/%m/%Y'), # Data de hoje em BR
                 "SOLICITANTE": "ALEX",
                 "EMPURRADOR": row['Empurrador'],
                 "MÊS/ANO": row['Mes_Ano'],
@@ -56,35 +54,45 @@ if aba == "⛽ Abastecimento":
                 "ODM FIM": row['ODM_Fim_Final']
             })
 
-        st.data_editor(pd.DataFrame(df_abast), use_container_width=True, hide_index=True, key="view_abast")
+        # Exibição com formatação de números
+        st.data_editor(
+            pd.DataFrame(df_abast), 
+            use_container_width=True, 
+            hide_index=True, 
+            key="view_abast"
+        )
     else:
         st.info("Aguardando lançamentos no Cálculo de Memória...")
 
 #---------------------------------------------------------#
-# BLOCO 2 - CALCULO DE MÉMORIA (MOTOR DE SALVAMENTO AJUSTADO)
+# BLOCO 2 - CALCULO DE MÉMORIA (DATA BR NO CALENDÁRIO)
 #---------------------------------------------------------#
 elif aba == "📝 Calculo de mémoria":
     st.header("📝 Calculo de mémoria (Ida e Volta)")
     
     i1, i2, i3 = st.columns(3)
-    with i1: emp_m = st.selectbox("EMPURRADOR", empurradores_lista, key="v2_emp")
-    with i2: data_m = st.date_input("DATA DA VIAGEM", key="v2_data")
-    with i3: trecho_m = st.text_input("TRECHO / SERVIÇO (Ex: MANAUS X BELEM)", key="v2_trecho")
+    with i1: 
+        emp_m = st.selectbox("EMPURRADOR", empurradores_lista, key="v2_emp")
+    with i2: 
+        # Calendário configurado para formato Brasileiro
+        data_m = st.date_input("DATA DA VIAGEM", format="DD/MM/YYYY", key="v2_data")
+    with i3: 
+        trecho_m = st.text_input("TRECHO / SERVIÇO (Ex: MANAUS X BELEM)", key="v2_trecho")
 
     st.divider()
     col_ida, col_volta = st.columns(2)
 
     def entrada_dados(prefixo):
         st.subheader(f"📍 {prefixo}")
-        s_odm = st.number_input(f"SALDO DE ODM ({prefixo})", value=0.0, key=f"s_{prefixo}")
-        o_comp = st.number_input(f"ODM COMPRA ({prefixo})", value=0.0, key=f"c_{prefixo}")
-        t_hor = st.number_input(f"TOTAL PLANO DE HORAS ({prefixo})", value=0.0, key=f"h_{prefixo}")
-        queima = st.number_input(f"QUEIMA L/H ({prefixo})", value=0.0, key=f"q_{prefixo}")
-        h_mca = st.number_input(f"HORAS DE MCA ({prefixo})", value=0.0, key=f"mca_{prefixo}")
-        lts_mca = st.number_input(f"LTS QUEIMA MCA ({prefixo})", value=7.0, key=f"l_{prefixo}")
-        h_mano = st.number_input(f"HORA DE MANOBRA ({prefixo})", value=0.0, key=f"hm_{prefixo}")
-        lh_mano = st.number_input(f"L/H MANOBRA ({prefixo})", value=0.0, key=f"lhm_{prefixo}")
-        transf = st.number_input(f"TRANSFERÊNCIA BT ({prefixo})", value=0.0, key=f"t_{prefixo}")
+        s_odm = st.number_input(f"SALDO DE ODM ({prefixo})", value=0.0, step=1.0, key=f"s_{prefixo}")
+        o_comp = st.number_input(f"ODM COMPRA ({prefixo})", value=0.0, step=1.0, key=f"c_{prefixo}")
+        t_hor = st.number_input(f"TOTAL PLANO DE HORAS ({prefixo})", value=0.0, step=0.1, key=f"h_{prefixo}")
+        queima = st.number_input(f"QUEIMA L/H ({prefixo})", value=0.0, step=0.1, key=f"q_{prefixo}")
+        h_mca = st.number_input(f"HORAS DE MCA ({prefixo})", value=0.0, step=0.1, key=f"mca_{prefixo}")
+        lts_mca = st.number_input(f"LTS QUEIMA MCA ({prefixo})", value=7.0, step=0.1, key=f"l_{prefixo}")
+        h_mano = st.number_input(f"HORA DE MANOBRA ({prefixo})", value=0.0, step=0.1, key=f"hm_{prefixo}")
+        lh_mano = st.number_input(f"L/H MANOBRA ({prefixo})", value=0.0, step=0.1, key=f"lhm_{prefixo}")
+        transf = st.number_input(f"TRANSFERÊNCIA BT ({prefixo})", value=0.0, step=1.0, key=f"t_{prefixo}")
         
         saida = s_odm + o_comp
         cons = (t_hor * queima) + (h_mca * lts_mca) + (h_mano * lh_mano)
@@ -97,17 +105,25 @@ elif aba == "📝 Calculo de mémoria":
     with col_volta: res_v = entrada_dados("VOLTA")
 
     if st.button("💾 FINALIZAR E SALVAR", use_container_width=True, type="primary"):
-        # Aqui o motor salva com os nomes que o Bloco 1 precisa para a matemática
+        # Salvamento com datas já formatadas em string BR
         nova_linha = pd.DataFrame([{
-            "Empurrador": emp_m, "Data": data_m.strftime('%d/%m/%Y'), "Mes_Ano": data_m.strftime('%m/%Y'),
-            "Local": trecho_m, "ODM_Zarpe_Ida": res_i['saida'],
-            "Plano_H_Ida": res_i['t_hor'], "Queima_Ida": res_i['queima'],
-            "Plano_H_Volta": res_v['t_hor'], "Queima_Volta": res_v['queima'],
-            "H_Mano_Ida": res_i['h_mano'], "H_Mano_Volta": res_v['h_mano'],
-            "LH_Mano_Ida": res_i['lh_mano'], "LH_Mano_Volta": res_v['lh_mano'],
-            "H_MCA_Ida": res_i['h_mca'], "H_MCA_Volta": res_v['h_mca'],
+            "Empurrador": emp_m, 
+            "Data": data_m.strftime('%d/%m/%Y'), 
+            "Mes_Ano": data_m.strftime('%m/%Y'),
+            "Local": trecho_m, 
+            "ODM_Zarpe_Ida": res_i['saida'],
+            "Plano_H_Ida": res_i['t_hor'], 
+            "Queima_Ida": res_i['queima'],
+            "Plano_H_Volta": res_v['t_hor'], 
+            "Queima_Volta": res_v['queima'],
+            "H_Mano_Ida": res_i['h_mano'], 
+            "H_Mano_Volta": res_v['h_mano'],
+            "LH_Mano_Ida": res_i['lh_mano'], 
+            "LH_Mano_Volta": res_v['lh_mano'],
+            "H_MCA_Ida": res_i['h_mca'], 
+            "H_MCA_Volta": res_v['h_mca'],
             "ODM_Fim_Final": res_v['chegada'] if res_v['t_hor'] > 0 else res_i['chegada']
         }])
         st.session_state.db_comb = pd.concat([st.session_state.db_comb, nova_linha], ignore_index=True)
-        st.success("Salvo! Verifique a tela de Abastecimento.")
+        st.success("Salvo com sucesso no padrão BR!")
         st.rerun()
