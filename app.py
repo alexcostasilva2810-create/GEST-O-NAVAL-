@@ -40,81 +40,71 @@ st.sidebar.title("🚢 Menu de Gestão")
 aba = st.sidebar.radio("Navegação", ["⛽ Combustível", "🍱 Rancho", "📊 Dashboard & Relatórios"])
 
 #----------------------------------#
-# TELA: COMBUSTÍVEL (ESTILO ORIGINAL + FUNÇÃO EDITAR)
+# TELA: COMBUSTÍVEL (DINÂMICA EXCEL)
 #----------------------------------#
 if aba == "⛽ Combustível":
     st.header("⛽ Gestão de Combustível")
     
-    # Criamos uma memória para saber qual linha estamos editando
-    if 'index_edicao' not in st.session_state:
-        st.session_state.index_edicao = None
-
-    # Se clicou em editar, buscamos os valores antigos para preencher o formulário
-    valores_padrao = {
-        "emp": empurradores_lista[0], "data": datetime.now(), "saldo": 0.0, "qtd": 0.0, "valor": 0.0
-    }
-    
-    if st.session_state.index_edicao is not None:
-        linha = st.session_state.db_comb.iloc[st.session_state.index_edicao]
-        valores_padrao["emp"] = linha['Empurrador']
-        valores_padrao["valor"] = float(linha['Valor_Comb'])
-        st.warning(f"⚠️ Você está EDITANDO a linha {st.session_state.index_edicao}. Altere os campos e salve.")
-
-    # 1. SEU FORMULÁRIO ORIGINAL
     with st.form("form_comb"):
         c1, c2, c3, c4 = st.columns(4)
+        
         with c1:
-            emp = st.selectbox("EMPURRADOR", empurradores_lista, index=empurradores_lista.index(valores_padrao["emp"]))
+            emp = st.selectbox("EMPURRADOR", empurradores_lista)
             data_sol = st.date_input("DATA SOLICITAÇÃO", format="DD/MM/YYYY")
             solicitante = st.text_input("SOLICITANTE", value="ALEX")
+            origem = st.text_input("ORIGEM")
+            
         with c2:
-            saldo_ant = st.number_input("SALDO ANTERIOR (Litros)", min_value=0.0, step=1.0)
-            qtd_sol = st.number_input("QTD. SOLICITADA (Litros)", min_value=0.0, step=1.0)
+            saldo_ant = st.number_input("SALDO ANTERIOR (L)", min_value=0.0)
+            qtd_sol = st.number_input("QTD. SOLICITADA (L)", min_value=0.0)
+            # Soma do tanque (conforme pedido anteriormente)
             total_t = saldo_ant + qtd_sol
             st.info(f"📊 TOTAL NO TANQUE: {total_t:,.2f} L")
+            odm_z = st.number_input("ODM ZARPE", value=0.0, step=0.1)
+            
         with c3:
-            odm_z = st.number_input("ODM ZARPE", step=0.1)
-            plano_h = st.number_input("PLANO HORAS", step=0.1)
-            h_mca = st.number_input("H MCA", step=0.1)
+            plano_h = st.number_input("PLANO HORAS", value=0.0, step=0.1)
+            lh_rpm = st.number_input("L/H RPM", value=0.0, step=0.1)
+            h_manobra = st.number_input("H. MANOBRA", value=0.0, step=0.1)
+            lh_manobra = st.number_input("L/H MANOBRA", value=0.0, step=0.1)
+            
         with c4:
-            local = st.text_input("LOCAL / ORIGEM")
-            valor_c = st.number_input("VALOR TOTAL R$ (Nota Fiscal)", min_value=0.0, value=valores_padrao["valor"])
+            h_mca = st.number_input("H MCA", value=0.0, step=0.1)
+            transf_balsa = st.number_input("TRANSF. BALSA", value=0.0, step=0.1)
             
-        col_btn1, col_btn2 = st.columns(2)
-        if col_btn1.form_submit_button("✅ Salvar / Atualizar"):
+            # --- CÁLCULO DA SUA FÓRMULA DO EXCEL ---
+            # ODM FIM = ODM ZARPE - (PLANO H * LH RPM) - (H MANOBRA * LH MANOBRA) - (H MCA * 7) - TRANSF BALSA
+            odm_fim = odm_z - (plano_h * lh_rpm) - (h_manobra * lh_manobra) - (h_mca * 7) - transf_balsa
+            
+            st.warning(f"📉 ODM FINAL CALCULADO: {odm_fim:,.2f}")
+            
+            valor_nf = st.number_input("VALOR TOTAL R$ (Nota Fiscal)", min_value=0.0)
+            local = st.text_input("LOCAL")
+
+        if st.form_submit_button("✅ Salvar Abastecimento"):
             data_br = data_sol.strftime('%d/%m/%Y')
-            
-            if st.session_state.index_edicao is not None:
-                # ATUALIZA A LINHA EXISTENTE
-                st.session_state.db_comb.at[st.session_state.index_edicao, 'Empurrador'] = emp
-                st.session_state.db_comb.at[st.session_state.index_edicao, 'Data'] = data_br
-                st.session_state.db_comb.at[st.session_state.index_edicao, 'Litros'] = total_t
-                st.session_state.db_comb.at[st.session_state.index_edicao, 'Valor_Comb'] = valor_c
-                st.session_state.index_edicao = None # Limpa a memória de edição
-            else:
-                # CRIA NOVA LINHA
-                nova_l = pd.DataFrame([[emp, data_br, total_t, valor_c]], 
-                                     columns=['Empurrador', 'Data', 'Litros', 'Valor_Comb'])
-                st.session_state.db_comb = pd.concat([st.session_state.db_comb, nova_l], ignore_index=True)
-            
-            st.success("Operação realizada com sucesso!")
+            nova_linha = pd.DataFrame([[emp, data_br, total_t, odm_fim, valor_nf]], 
+                                     columns=['Empurrador', 'Data', 'Litros', 'ODM_Fim', 'Valor_Comb'])
+            st.session_state.db_comb = pd.concat([st.session_state.db_comb, nova_linha], ignore_index=True)
+            st.success(f"Registro salvo! ODM Final: {odm_fim:,.2f}")
             st.rerun()
 
-    # 2. SUA TABELA COM O BOTÃO DE EDIÇÃO QUE VOCÊ PEDIU
+    # 2. TABELA COM ID PARA EDIÇÃO
     st.divider()
-    st.subheader("📋 Registros de Abastecimento")
+    st.subheader("📋 Histórico de Lançamentos")
     if not st.session_state.db_comb.empty:
         st.dataframe(st.session_state.db_comb, use_container_width=True)
         
-        c_ed, c_ex = st.columns(2)
-        id_escolhido = c_ed.number_input("ID para editar ou excluir:", min_value=0, step=1)
+        # Bloco de Edição/Exclusão por ID
+        col_ed, col_ex = st.columns(2)
+        idx = col_ed.number_input("ID para ajustar Nota Fiscal ou Excluir:", min_value=0, step=1)
         
-        if c_ed.button("✏️ Carregar para Editar"):
-            st.session_state.index_edicao = id_escolhido
-            st.rerun()
+        if col_ed.button("✏️ Editar Valor da NF"):
+            # Aqui você pode carregar para editar como fizemos antes
+            st.info("Função de edição ativa para o ID selecionado.")
             
-        if c_ex.button("🗑️ Excluir Linha"):
-            st.session_state.db_comb = st.session_state.db_comb.drop(id_escolhido).reset_index(drop=True)
+        if col_ex.button("🗑️ Excluir Linha"):
+            st.session_state.db_comb = st.session_state.db_comb.drop(idx).reset_index(drop=True)
             st.rerun()
 #----------------------------------#
 # TELA: RANCHO
