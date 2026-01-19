@@ -40,42 +40,59 @@ st.sidebar.title("🚢 Menu de Gestão")
 aba = st.sidebar.radio("Navegação", ["⛽ Combustível", "🍱 Rancho", "📊 Dashboard & Relatórios"])
 
 #----------------------------------#
-# TELA: COMBUSTÍVEL (COM CÁLCULO DE SALDO)
+# TELA: COMBUSTÍVEL (COM TABELA E EDIÇÃO)
 #----------------------------------#
 if aba == "⛽ Combustível":
     st.header("⛽ Gestão de Combustível")
+    
+    # 1. FORMULÁRIO DE ENTRADA/EDIÇÃO
     with st.form("form_comb"):
         c1, c2, c3, c4 = st.columns(4)
         with c1:
             emp = st.selectbox("EMPURRADOR", empurradores_lista)
             data_sol = st.date_input("DATA SOLICITAÇÃO", format="DD/MM/YYYY")
             solicitante = st.text_input("SOLICITANTE", value="ALEX")
-        
         with c2:
-            # NOVOS CAMPOS DE CÁLCULO
-            saldo_anterior = st.number_input("SALDO ANTERIOR (Litros)", min_value=0.0, step=1.0)
-            qtd_solicitada = st.number_input("QTD. SOLICITADA (Litros)", min_value=0.0, step=1.0)
-            
-            # CÁLCULO AUTOMÁTICO
-            total_tanque = saldo_anterior + qtd_solicitada
-            st.info(f"📊 TOTAL NO TANQUE: {total_tanque:.2f} Litros")
-            
+            saldo_ant = st.number_input("SALDO ANTERIOR (Litros)", min_value=0.0)
+            qtd_sol = st.number_input("QTD. SOLICITADA (Litros)", min_value=0.0)
+            total_t = saldo_ant + qtd_sol
+            st.info(f"📊 TOTAL NO TANQUE: {total_t:.2f} L")
         with c3:
             odm_z = st.number_input("ODM ZARPE", step=0.1)
             plano_h = st.number_input("PLANO HORAS", step=0.1)
-            h_mca = st.number_input("H MCA", step=0.1)
-            
         with c4:
             valor_c = st.number_input("VALOR TOTAL R$ (Diesel)", min_value=0.0)
             local = st.text_input("LOCAL / ORIGEM")
             
-        if st.form_submit_button("Salvar Abastecimento"):
-            data_br = data_sol.strftime('%d/%m/%Y')
-            # Salvamos o Total Tanque no banco de dados
-            novo_c = pd.DataFrame([[emp, data_br, total_tanque, valor_c]], 
-                                  columns=['Empurrador', 'Data', 'Litros', 'Valor_Comb'])
-            st.session_state.db_comb = pd.concat([st.session_state.db_comb, novo_c], ignore_index=True)
-            st.success(f"✅ Sucesso! Total de {total_tanque} litros registrado para o {emp}.")
+        btn_salvar = st.form_submit_button("✅ Salvar Abastecimento")
+
+    if btn_salvar:
+        novo_registro = {
+            'Empurrador': emp, 'Data': data_sol.strftime('%d/%m/%Y'),
+            'Saldo Ant': saldo_ant, 'Qtd Sol': qtd_sol,
+            'Total Tanque': total_t, 'Valor R$': valor_c, 'Local': local
+        }
+        st.session_state.db_comb = pd.concat([st.session_state.db_comb, pd.DataFrame([novo_registro])], ignore_index=True)
+        st.success("Registro salvo com sucesso!")
+
+    # 2. TABELA DE REGISTROS (ÁREA VERMELHA DA SUA IMAGEM)
+    st.divider()
+    st.subheader("📋 Registros de Abastecimento")
+    
+    if not st.session_state.db_comb.empty:
+        # Mostra a tabela interativa
+        event = st.dataframe(st.session_state.db_comb, use_container_width=True, hide_index=False)
+        
+        # 3. BOTÃO DE EDIÇÃO/EXCLUSÃO
+        col_ed1, col_ed2 = st.columns(2)
+        idx_remover = col_ed1.number_input("Digite o ID (índice) para remover:", min_value=0, step=1)
+        if col_ed1.button("🗑️ Excluir Registro"):
+            st.session_state.db_comb = st.session_state.db_comb.drop(idx_remover).reset_index(drop=True)
+            st.rerun()
+            
+        st.caption("Dica: Para editar, remova o registro errado e insira o novo no formulário acima.")
+    else:
+        st.info("Nenhum registro encontrado.")
 
 #----------------------------------#
 # TELA: RANCHO
