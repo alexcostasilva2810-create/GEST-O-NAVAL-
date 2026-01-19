@@ -40,62 +40,66 @@ st.sidebar.title("🚢 Menu de Gestão")
 aba = st.sidebar.radio("Navegação", ["⛽ Combustível", "🍱 Rancho", "📊 Dashboard & Relatórios"])
 
 #----------------------------------#
-# TELA: COMBUSTÍVEL (EDIÇÃO COMPATÍVEL)
+# TELA: COMBUSTÍVEL (ESTILO ORIGINAL)
 #----------------------------------#
 if aba == "⛽ Combustível":
     st.header("⛽ Gestão de Combustível")
     
-    # Criamos um espaço para o formulário
-    container_form = st.container()
+    # 1. FORMULÁRIO ORIGINAL COMPLETO
+    with st.form("form_comb"):
+        c1, c2, c3, c4 = st.columns(4)
+        with c1:
+            emp = st.selectbox("EMPURRADOR", empurradores_lista)
+            data_sol = st.date_input("DATA SOLICITAÇÃO", format="DD/MM/YYYY")
+            solicitante = st.text_input("SOLICITANTE", value="ALEX")
+            origem = st.text_input("ORIGEM")
+        with c2:
+            saldo_ant = st.number_input("SALDO ANTERIOR (Litros)", min_value=0.0)
+            qtd_sol = st.number_input("QTD. SOLICITADA (Litros)", min_value=0.0)
+            total_t = saldo_ant + qtd_sol
+            st.info(f"📊 TOTAL NO TANQUE: {total_t:.2f} L")
+            odm_z = st.number_input("ODM ZARPE", step=0.1)
+        with c3:
+            plano_h = st.number_input("PLANO HORAS", step=0.1)
+            lh_rpm = st.number_input("L/H RPM", step=0.1)
+            h_manobra = st.number_input("H. MANOBRA", step=0.1)
+            h_mca = st.number_input("H MCA", step=0.1)
+        with c4:
+            mes_ref = st.selectbox("MÊS/ANO", ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"])
+            local = st.text_input("LOCAL")
+            valor_c = st.number_input("VALOR TOTAL R$ (Diesel)", min_value=0.0) # Onde entra a NF depois
+            
+        if st.form_submit_button("Salvar Abastecimento"):
+            data_br = data_sol.strftime('%d/%m/%Y')
+            novo_c = pd.DataFrame([[emp, data_br, total_t, valor_c]], 
+                                  columns=['Empurrador', 'Data', 'Litros', 'Valor_Comb'])
+            st.session_state.db_comb = pd.concat([st.session_state.db_comb, novo_c], ignore_index=True)
+            st.success(f"✅ Salvo com sucesso!")
+            st.rerun()
 
-    # 1. TABELA DE REGISTROS (Aparece primeiro para você ver o que quer editar)
-    st.subheader("📋 Histórico de Lançamentos")
+    # 2. TABELA DE REGISTROS (Abaixo do formulário)
+    st.divider()
+    st.subheader("📋 Registros de Abastecimento")
     if not st.session_state.db_comb.empty:
         st.dataframe(st.session_state.db_comb, use_container_width=True)
         
-        # ÁREA DE AÇÃO: Editar ou Excluir
-        c_edit, c_excluir = st.columns(2)
+        # 3. BLOCO DE AJUSTE (Para quando a NF chegar)
+        st.markdown("---")
+        st.write("🔧 **Ajustar Valor de Nota Fiscal ou Remover Registro**")
+        col_aj1, col_aj2, col_aj3 = st.columns([1, 1, 1])
         
-        with c_edit:
-            idx_para_editar = st.number_input("Digite o ID da linha para ADICIONAR NOTA FISCAL:", min_value=0, step=1)
-            novo_valor_nf = st.number_input("Novo Valor da Nota Fiscal (R$):", min_value=0.0)
-            if st.button("💾 Atualizar Valor da Nota"):
-                # Atualiza apenas a coluna de Valor na linha escolhida
-                st.session_state.db_comb.at[idx_para_editar, 'Valor_Comb'] = novo_valor_nf
-                st.success(f"✅ Valor atualizado na linha {idx_para_editar}!")
-                st.rerun()
-
-        with c_excluir:
-            idx_remover = st.number_input("Digite o ID para REMOVER lançamento:", min_value=0, step=1)
-            if st.button("🗑️ Excluir permanentemente"):
-                st.session_state.db_comb = st.session_state.db_comb.drop(idx_remover).reset_index(drop=True)
-                st.rerun()
-    else:
-        st.info("Nenhum registro para exibir.")
-
-    st.divider()
-
-    # 2. FORMULÁRIO DE NOVO LANÇAMENTO (Fica embaixo agora)
-    with container_form.form("form_novo_comb"):
-        st.subheader("➕ Novo Lançamento Operacional")
-        f1, f2, f3 = st.columns(3)
-        with f1:
-            emp = st.selectbox("EMPURRADOR", empurradores_lista)
-            data_sol = st.date_input("DATA", format="DD/MM/YYYY")
-        with f2:
-            s_ant = st.number_input("SALDO ANTERIOR (L)", min_value=0.0)
-            q_sol = st.number_input("QTD SOLICITADA (L)", min_value=0.0)
-        with f3:
-            odm = st.number_input("ODM ZARPE", step=0.1)
-            # Valor da nota começa em 0 se não tiver ainda
-            val_nf_inicial = st.number_input("VALOR NF (Deixe 0 se não tiver)", min_value=0.0)
+        with col_aj1:
+            id_edit = st.number_input("ID da Linha:", min_value=0, step=1)
+        with col_aj2:
+            nova_nf = st.number_input("Novo Valor R$:", min_value=0.0)
+        
+        if col_aj1.button("💾 Atualizar NF"):
+            st.session_state.db_comb.at[id_edit, 'Valor_Comb'] = nova_nf
+            st.success("Valor atualizado!")
+            st.rerun()
             
-        if st.form_submit_button("✅ Salvar Novo"):
-            total_l = s_ant + q_sol
-            nova_l = pd.DataFrame([[emp, data_sol.strftime('%d/%m/%Y'), total_l, val_nf_inicial]], 
-                                 columns=['Empurrador', 'Data', 'Litros', 'Valor_Comb'])
-            st.session_state.db_comb = pd.concat([st.session_state.db_comb, nova_l], ignore_index=True)
-            st.success("Lançado!")
+        if col_aj3.button("🗑️ Excluir Linha"):
+            st.session_state.db_comb = st.session_state.db_comb.drop(id_edit).reset_index(drop=True)
             st.rerun()
 
 #----------------------------------#
