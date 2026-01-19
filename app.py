@@ -27,42 +27,84 @@ if 'db_comb' not in st.session_state:
 st.sidebar.title("🚢 Menu de Gestão")
 aba = st.sidebar.radio("Navegação", ["⛽ Abastecimento", "📝 Calculo de mémoria", "🛒 Rancho", "📊 Dashboard"])
 
-#----------------------------------#
-# BLOCO 1 - ABASTECIMENTO
-#----------------------------------#
+#---------------------------------------------------------#
+# BLOCO 1 - ABASTECIMENTO (INTEGRADO COM MEMÓRIA)
+#---------------------------------------------------------#
 if aba == "⛽ Abastecimento":
-    st.header("⛽ Lançamento de Abastecimento")
-    
-    col1, col2, col3, col4 = st.columns(4)
-    with col1:
-        emp = st.selectbox("EMPURRADOR", empurradores_lista, key="t1_emp")
-        data_sol = st.date_input("DATA", format="DD/MM/YYYY", key="t1_data")
-        solicitante = st.text_input("SOLICITANTE", value="ALEX", key="t1_soli")
-    with col2:
-        origem = st.text_input("ORIGEM / LOCAL", key="t1_orig")
-        saldo_ant = st.number_input("SALDO ANTERIOR (L)", min_value=0.0, step=1.0, key="t1_saldo")
-        qtd_sol = st.number_input("QTD. SOLICITADA (L)", min_value=0.0, step=1.0, key="t1_qtd")
-    with col3:
-        odm_z = saldo_ant + qtd_sol
-        st.success(f"⚓ ODM ZARPE: {odm_z:,.2f}")
-        valor_nf = st.number_input("VALOR TOTAL R$ (NF)", min_value=0.0, key="t1_nf")
-    with col4:
-        st.write("---")
-        if st.button("✅ SALVAR ABASTECIMENTO", use_container_width=True, type="primary"):
-            nova_l = pd.DataFrame([{
-                "SEL": False, "Empurrador": emp, "Data": data_sol.strftime('%d/%m/%Y'), 
-                "Solicitante": solicitante, "Origem": origem, "Saldo_Ant": saldo_ant, 
-                "Qtd_Sol": qtd_sol, "ODM_Zarpe": odm_z, "Valor_NF": valor_nf,
-                "Consumo_Total": 0.0, "Media_Ponderada": 0.0 # Campos de consumo zerados no abastecimento
-            }])
-            st.session_state.db_comb = pd.concat([st.session_state.db_comb, nova_l], ignore_index=True)
-            st.rerun()
+    st.header("⛽ Tabela de Abastecimento e Movimentação")
+    st.info("Esta tabela processa automaticamente os dados lançados no Cálculo de Memória.")
 
-    st.divider()
-    st.subheader("📋 Tabela Geral de Registros")
+    # Só processamos se houver dados no banco
     if not st.session_state.db_comb.empty:
-        st.data_editor(st.session_state.db_comb, use_container_width=True, hide_index=True, key="ed_geral")
+        df_abast = []
+        
+        # Percorremos cada registro vindo do Cálculo de Memória para aplicar sua matemática
+        for index, row in st.session_state.db_comb.iterrows():
+            # 1. TRATAMENTO DE TEXTO (ORIGEM e DESTINO)
+            trecho = str(row.get('Local', ''))
+            if 'X' in trecho.upper():
+                partes = trecho.upper().split('X')
+                origem_auto = partes[0].strip()
+                destino_auto = partes[1].strip()
+            else:
+                origem_auto = trecho
+                destino_auto = ""
 
+            # 2. MATEMÁTICA L/H RPM (MÉDIA PONDERADA)
+            # Regra: (H*Q ida + H*Q volta) / (H ida + H volta)
+            h_total = row['Plano_H_Ida'] + row['Plano_H_Volta']
+            if h_total > 0:
+                lh_rpm_calc = (row['Plano_H_Ida'] * row['Queima_Ida'] + row['Plano_H_Volta'] * row['Queima_Volta']) / h_total
+            else:
+                lh_rpm_calc = row['Queima_Ida'] # Segue apenas IDA se não houver volta
+
+            # 3. MÊS/ANO
+            try:
+                dt_obj = datetime.strptime(row['Data'], '%d/%m/%Y')
+                mes_ano = dt_obj.strftime('%m/%Y')
+            except:
+                mes_ano = ""
+
+            # MONTAGEM DA LINHA CONFORME SUAS COLUNAS
+            df_abast.append({
+                "SEL": row['SEL'],
+                "DATA SOLICITAÇÃO": datetime.now().strftime('%d/%m/%Y'),
+                "SOLICITANTE": "ALEX",
+                "EMPURRADOR": row['Empurrador'],
+                "MÊS/ANO": mes_ano,
+                "ORIGEM": origem_auto,
+                "DESTINO": destino_auto,
+                "ODM ZARPE": row['ODM_Zarpe_Ida'], # Saldo + Compra da Ida
+                "PLANO HORAS": h_total,
+                "L/H RPM": round(lh_rpm_calc, 2),
+                "H. MANOBRA": row['H_Mano_Ida'] + row['H_Mano_Volta'],
+                "L/H MANOBRA": row['LH_Mano_Ida'] + row['LH_Mano_Volta'],
+                "H MCA": row['H_MCA_Ida'] + row['H_MCA_Volta'],
+                "ODM FIM": row['ODM_Fim_Final'] # VAI CHEGAR COM (VOLTA ou IDA)
+            })
+
+        df_final = pd.DataFrame(df_abast)
+
+        # EXIBIÇÃO DA TABELA
+        tabela_edit = st.data_editor(
+            df_final,
+            use_container_width=True,
+            hide_index=True,
+            column_config={
+                "SEL": st.column_config.CheckboxColumn("SEL", default=False),
+                "ODM ZARPE": st.column_config.NumberColumn(format="%.2f"),
+                "ODM FIM": st.column_config.NumberColumn(format="%.2f"),
+            },
+            key="editor_abastecimento"
+        )
+        
+        # Botão para limpar registros
+        if st.button("🗑️ Excluir Registros Selecionados"):
+            st.session_state.db_comb = st.session_state.db_comb[st.session_state.db_comb["SEL"] == False]
+            st.rerun()
+            
+    else:
+        st.warning("Aguardando lançamentos no Bloco 'Calculo de mémoria'...")
 #---------------------------------------------------------#
 # BLOCO 2 - CALCULO DE MÉMORIA (MATEMÁTICA OFICIAL ALEX)
 #---------------------------------------------------------#
