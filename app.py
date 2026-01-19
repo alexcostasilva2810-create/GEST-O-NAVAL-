@@ -40,7 +40,7 @@ st.sidebar.title("🚢 Menu de Gestão")
 aba = st.sidebar.radio("Navegação", ["⛽ Combustível", "🍱 Rancho", "📊 Dashboard & Relatórios"])
 
 #----------------------------------#
-# TELA: COMBUSTÍVEL
+# TELA: COMBUSTÍVEL (COM CÁLCULO DE SALDO)
 #----------------------------------#
 if aba == "⛽ Combustível":
     st.header("⛽ Gestão de Combustível")
@@ -48,24 +48,34 @@ if aba == "⛽ Combustível":
         c1, c2, c3, c4 = st.columns(4)
         with c1:
             emp = st.selectbox("EMPURRADOR", empurradores_lista)
-            data_sol = st.date_input("DATA SOLICITAÇÃO", format="DD/MM/YYYY") # DATA BR
-            solicitante = st.text_input("SOLICITANTE")
+            data_sol = st.date_input("DATA SOLICITAÇÃO", format="DD/MM/YYYY")
+            solicitante = st.text_input("SOLICITANTE", value="ALEX")
+        
         with c2:
+            # NOVOS CAMPOS DE CÁLCULO
+            saldo_anterior = st.number_input("SALDO ANTERIOR (Litros)", min_value=0.0, step=1.0)
+            qtd_solicitada = st.number_input("QTD. SOLICITADA (Litros)", min_value=0.0, step=1.0)
+            
+            # CÁLCULO AUTOMÁTICO
+            total_tanque = saldo_anterior + qtd_solicitada
+            st.info(f"📊 TOTAL NO TANQUE: {total_tanque:.2f} Litros")
+            
+        with c3:
             odm_z = st.number_input("ODM ZARPE", step=0.1)
             plano_h = st.number_input("PLANO HORAS", step=0.1)
-        with c3:
-            lh_rpm = st.number_input("L/H RPM", step=0.1)
             h_mca = st.number_input("H MCA", step=0.1)
+            
         with c4:
-            litros = st.number_input("LITROS TOTAL", min_value=0.0)
-            valor_c = st.number_input("VALOR TOTAL R$", min_value=0.0)
+            valor_c = st.number_input("VALOR TOTAL R$ (Diesel)", min_value=0.0)
+            local = st.text_input("LOCAL / ORIGEM")
             
         if st.form_submit_button("Salvar Abastecimento"):
             data_br = data_sol.strftime('%d/%m/%Y')
-            novo_c = pd.DataFrame([[emp, "Janeiro", data_br, litros, valor_c]], 
-                                  columns=['Empurrador', 'Mês', 'Data', 'Litros', 'Valor_Comb'])
+            # Salvamos o Total Tanque no banco de dados
+            novo_c = pd.DataFrame([[emp, data_br, total_tanque, valor_c]], 
+                                  columns=['Empurrador', 'Data', 'Litros', 'Valor_Comb'])
             st.session_state.db_comb = pd.concat([st.session_state.db_comb, novo_c], ignore_index=True)
-            st.success(f"Registrado: {emp}!")
+            st.success(f"✅ Sucesso! Total de {total_tanque} litros registrado para o {emp}.")
 
 #----------------------------------#
 # TELA: RANCHO
