@@ -14,7 +14,7 @@ empurradores_lista = [
 ]
 
 #----------------------------------#
-# BANCO DE DADOS (MEMÓRIA)
+# BANCO DE DADOS (MEMÓRIA UNIFICADA)
 #----------------------------------#
 if 'db_comb' not in st.session_state:
     st.session_state.db_comb = pd.DataFrame(columns=[
@@ -27,115 +27,101 @@ if 'db_comb' not in st.session_state:
 # MENU LATERAL
 #----------------------------------#
 st.sidebar.title("🚢 Menu de Gestão")
-aba = st.sidebar.radio("Navegação", ["⛽ Combustível", "📝 Controle Diário", "🛒 Rancho", "📊 Dashboard"])
+aba = st.sidebar.radio("Navegação", ["⛽ Abastecimento", "📝 Medição Diária", "🛒 Rancho", "📊 Dashboard"])
 
 #----------------------------------#
-# BLOCO 1 - ABASTECIMENTO (COMBUSTÍVEL)
+# BLOCO 1 - ABASTECIMENTO (TELA 1)
 #----------------------------------#
-if aba == "⛽ Combustível":
-    st.header("⛽ Gestão de Combustível")
-    st.subheader("📝 Lançamento de Abastecimento")
+if aba == "⛽ Abastecimento":
+    st.header("⛽ Lançamento de Abastecimento")
     
-    c1, c2, c3, c4 = st.columns(4)
-    with c1:
-        emp = st.selectbox("EMPURRADOR", empurradores_lista, key="c_emp")
-        data_sol = st.date_input("DATA SOLICITAÇÃO", format="DD/MM/YYYY")
-        solicitante = st.text_input("SOLICITANTE", value="ALEX")
-        origem = st.text_input("ORIGEM")
-    with c2:
-        saldo_ant = st.number_input("SALDO ANTERIOR (L)", min_value=0.0, step=1.0, key="c_saldo")
-        qtd_sol = st.number_input("QTD. SOLICITADA (L)", min_value=0.0, step=1.0, key="c_qtd")
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        emp = st.selectbox("EMPURRADOR", empurradores_lista, key="t1_emp")
+        data_sol = st.date_input("DATA SOLICITAÇÃO", format="DD/MM/YYYY", key="t1_data")
+        origem = st.text_input("ORIGEM/LOCAL", key="t1_origem")
+    with col2:
+        saldo_ant = st.number_input("SALDO ANTERIOR (L)", min_value=0.0, step=1.0, key="t1_saldo")
+        qtd_sol = st.number_input("QTD. SOLICITADA (L)", min_value=0.0, step=1.0, key="t1_qtd")
         odm_z = saldo_ant + qtd_sol # SOMA AUTOMÁTICA
-        st.success(f"⚓ ODM ZARPE (SOMA): {odm_z:,.2f} L")
-    with c3:
-        plano_h = st.number_input("PLANO HORAS", value=0.0, step=0.1, key="c_plano")
-        lh_rpm = st.number_input("L/H RPM", value=0.0, step=0.1, key="c_rpm")
-        h_manobra = st.number_input("H. MANOBRA", value=0.0, step=0.1, key="c_mano")
-    with c4:
-        h_mca = st.number_input("H MCA", value=0.0, step=0.1, key="c_mca")
-        transf_balsa = st.number_input("TRANSF. BALSA", value=0.0, step=0.1, key="c_transf")
-        # FÓRMULA ODM FIM
-        odm_fim = odm_z - (plano_h * lh_rpm) - (h_mca * 7) - transf_balsa
-        st.error(f"📉 ODM FINAL: {odm_fim:,.2f}")
-        valor_nf = st.number_input("VALOR TOTAL R$ (Nota Fiscal)", min_value=0.0, key="c_nf")
-
-    if st.button("✅ SALVAR NOVO ABASTECIMENTO", use_container_width=True, type="primary"):
-        nova_l = pd.DataFrame([{
-            "SEL": False, "Empurrador": emp, "Data": data_sol.strftime('%d/%m/%Y'), 
-            "Saldo_Ant": saldo_ant, "Qtd_Sol": qtd_sol, "ODM_Zarpe": odm_z,
-            "Plano_H": plano_h, "LH_RPM": lh_rpm, "H_Manobra": h_manobra,
-            "H_MCA": h_mca, "Transf": transf_balsa,
-            "ODM_Fim": odm_fim, "Valor_NF": valor_nf, "Local": origem
-        }])
-        st.session_state.db_comb = pd.concat([st.session_state.db_comb, nova_l], ignore_index=True)
-        st.rerun()
+        st.success(f"⚓ ODM ZARPE: {odm_z:,.2f}")
+    with col3:
+        # Campos de ajuste manual para abastecimento se necessário
+        h_mano = st.number_input("H. MANOBRA", value=0.0, key="t1_mano")
+        valor_nf = st.number_input("VALOR TOTAL R$", min_value=0.0, key="t1_nf")
+    with col4:
+        st.write("---")
+        if st.button("✅ SALVAR ABASTECIMENTO", use_container_width=True, type="primary"):
+            nova_l = pd.DataFrame([{
+                "SEL": False, "Empurrador": emp, "Data": data_sol.strftime('%d/%m/%Y'), 
+                "Saldo_Ant": saldo_ant, "Qtd_Sol": qtd_sol, "ODM_Zarpe": odm_z,
+                "Plano_H": 0.0, "LH_RPM": 0.0, "H_Manobra": h_mano,
+                "H_MCA": 0.0, "Transf": 0.0, "ODM_Fim": odm_z, 
+                "Valor_NF": valor_nf, "Local": origem
+            }])
+            st.session_state.db_comb = pd.concat([st.session_state.db_comb, nova_l], ignore_index=True)
+            st.rerun()
 
     st.divider()
-    st.subheader("📋 Tabela de Registros Integrados")
+    st.subheader("📋 Tabela Geral de Combustível (Abastecimentos e Medições)")
     if not st.session_state.db_comb.empty:
         tabela_editada = st.data_editor(
             st.session_state.db_comb,
             use_container_width=True,
             hide_index=True,
             column_config={"SEL": st.column_config.CheckboxColumn("SEL", default=False)},
-            key="editor_direto"
+            key="editor_geral"
         )
-        if not tabela_editada.equals(st.session_state.db_comb):
-            st.session_state.db_comb = tabela_editada
-            st.toast("Alteração salva!")
-        
-        if st.button("🗑️ Excluir Linhas Marcadas"):
+        if st.button("🗑️ Excluir Selecionados"):
             st.session_state.db_comb = st.session_state.db_comb[st.session_state.db_comb["SEL"] == False]
             st.rerun()
 
 #----------------------------------#
-# BLOCO 2 - CONTROLE DIÁRIO (VÍDEO 2)
+# BLOCO 2 - MEDIÇÃO DIÁRIA (TELA 2)
 #----------------------------------#
-elif aba == "📝 Controle Diário":
-    st.header("📝 Lançamento de Medição Diária")
-    st.write("Cálculo de consumo diário por horímetro.")
-
-    d1, d2, d3, d4 = st.columns(4)
-    with d1:
-        emp_v2 = st.selectbox("EMPURRADOR", empurradores_lista, key="v2_emp")
-        data_v2 = st.date_input("DATA", format="DD/MM/YYYY", key="v2_data")
-        trecho = st.text_input("TRECHO / SERVIÇO", key="v2_trecho")
-    with d2:
-        h_ini = st.number_input("HORÍMETRO INICIAL", min_value=0.0, step=0.1, key="v2_hini")
-        h_fim = st.number_input("HORÍMETRO FINAL", min_value=0.0, step=0.1, key="v2_hfim")
-        horas_trab = h_fim - h_ini
-        st.metric("HORAS TRABALHADAS", f"{horas_trab:.1f} h")
-    with d3:
-        media_lh = st.number_input("MÉDIA L/H", value=0.0, step=0.1, key="v2_media")
-        consumo_motor = horas_trab * media_lh
-        st.metric("CONSUMO MOTOR (L)", f"{consumo_motor:.2f} L")
-    with d4:
-        mca_h = st.number_input("HORAS MCA", value=0.0, step=0.1, key="v2_mca")
-        consumo_total_dia = consumo_motor + (mca_h * 7.0)
-        st.warning(f"⛽ TOTAL CONSUMIDO: {consumo_total_dia:,.2f} L")
-
-    if st.button("🚀 FINALIZAR E ATUALIZAR TABELA GERAL", use_container_width=True, type="primary"):
-        nova_linha_comb = pd.DataFrame([{
-            "SEL": False, "Empurrador": emp_v2, "Data": data_v2.strftime('%d/%m/%Y'),
-            "Saldo_Ant": 0.0, "Qtd_Sol": 0.0, "ODM_Zarpe": 0.0,
-            "Plano_H": horas_trab, "LH_RPM": media_lh, "H_Manobra": 0.0,
-            "H_MCA": mca_h, "Transf": 0.0,
-            "ODM_Fim": consumo_total_dia, "Valor_NF": 0.0, "Local": trecho
-        }])
-        st.session_state.db_comb = pd.concat([st.session_state.db_comb, nova_linha_comb], ignore_index=True)
-        st.success("✅ Enviado para a Tabela de Combustível!")
-        st.rerun()
+elif aba == "📝 Medição Diária":
+    st.header("📝 Medição de Consumo Diário")
+    
+    m1, m2, m3, m4 = st.columns(4)
+    with m1:
+        emp_m = st.selectbox("EMPURRADOR", empurradores_lista, key="t2_emp")
+        data_m = st.date_input("DATA MEDIÇÃO", format="DD/MM/YYYY", key="t2_data")
+        trecho = st.text_input("TRECHO / SERVIÇO", key="t2_trecho")
+    with m2:
+        h_ini = st.number_input("HORÍMETRO INICIAL", min_value=0.0, step=0.1, key="t2_hini")
+        h_fim = st.number_input("HORÍMETRO FINAL", min_value=0.0, step=0.1, key="t2_hfim")
+        horas_t = h_fim - h_ini
+        st.metric("HORAS TRABALHADAS", f"{horas_t:.1f} h")
+    with m3:
+        media_lh = st.number_input("MÉDIA L/H RPM", value=0.0, step=0.1, key="t2_media")
+        consumo_mp = horas_t * media_lh
+        st.metric("CONS. MOTOR (L)", f"{consumo_mp:.2f}")
+    with m4:
+        h_mca_m = st.number_input("HORAS MCA", value=0.0, step=0.1, key="t2_mca")
+        total_consumo = consumo_mp + (h_mca_m * 7.0)
+        st.error(f"📉 TOTAL CONSUMO: {total_consumo:,.2f}")
+        
+        if st.button("💾 SALVAR NA TABELA DE COMBUSTÍVEL", use_container_width=True, type="primary"):
+            nova_med = pd.DataFrame([{
+                "SEL": False, "Empurrador": emp_m, "Data": data_m.strftime('%d/%m/%Y'),
+                "Saldo_Ant": 0.0, "Qtd_Sol": 0.0, "ODM_Zarpe": 0.0,
+                "Plano_H": horas_t, "LH_RPM": media_lh, "H_Manobra": 0.0,
+                "H_MCA": h_mca_m, "Transf": 0.0,
+                "ODM_Fim": total_consumo, "Valor_NF": 0.0, "Local": trecho
+            }])
+            st.session_state.db_comb = pd.concat([st.session_state.db_comb, nova_med], ignore_index=True)
+            st.success("✅ Medição enviada para a tabela principal!")
+            st.rerun()
 
 #----------------------------------#
 # BLOCO 3 - RANCHO
 #----------------------------------#
 elif aba == "🛒 Rancho":
     st.header("🛒 Gestão de Rancho")
-    st.info("Área em construção para provisões.")
+    st.write("Área para provisões.")
 
 #----------------------------------#
 # BLOCO 4 - DASHBOARD
 #----------------------------------#
 elif aba == "📊 Dashboard":
-    st.header("📊 Dashboard")
-    st.write("Resumo estatístico dos lançamentos.")
+    st.header("📊 Resumo Estatístico")
