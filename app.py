@@ -6,11 +6,12 @@ from datetime import datetime
 #----------------------------------#
 # CONFIGURAÇÕES DO NOTION
 #----------------------------------#
+# Certifique-se de que não haja espaços extras dentro das aspas
 NOTION_TOKEN = "ntn_uK635337593B2E2IGk4djZWXXf16GNziJUqcuyj8SH79Iq"
 DATABASE_ID = "2ed025de7b79804eace0e1e80a186a49"
 
 headers = {
-    "Authorization": "Bearer " + NOTION_TOKEN,
+    "Authorization": f"Bearer {NOTION_TOKEN}",
     "Content-Type": "application/json",
     "Notion-Version": "2022-06-28"
 }
@@ -20,13 +21,13 @@ def enviar_ao_notion(dados):
     payload = {
         "parent": {"database_id": DATABASE_ID},
         "properties": {
-            "Nome do Empurrador.": {"title": [{"text": {"content": dados['Empurrador']}}]},
-            "Data": {"rich_text": [{"text": {"content": dados['Data']}}]},
-            "Trecho": {"rich_text": [{"text": {"content": dados['Local']}}]},
-            "Saldo Odm": {"number": dados['ODM_Zarpe_Ida']},
-            "Plano Horas": {"number": dados['Plano_Total']},
-            "L/H RPM": {"number": dados['LH_Ponderado']},
-            "ODM FIM": {"number": dados['ODM_Fim_Final']}
+            "Nome do Empurrador.": {"title": [{"text": {"content": str(dados['Empurrador'])}}]},
+            "Data": {"rich_text": [{"text": {"content": str(dados['Data'])}}]},
+            "Trecho": {"rich_text": [{"text": {"content": str(dados['Local'])}}]},
+            "Saldo Odm": {"number": float(dados['ODM_Zarpe_Ida'])},
+            "Plano Horas": {"number": float(dados['Plano_Total'])},
+            "L/H RPM": {"number": float(dados['LH_Ponderado'])},
+            "ODM FIM": {"number": float(dados['ODM_Fim_Final'])}
         }
     }
     return requests.post(url, json=payload, headers=headers)
@@ -57,31 +58,34 @@ if aba == "⛽ Abastecimento":
         for index, row in st.session_state.db_comb.iterrows():
             trecho = str(row.get('Local', '')).upper()
             origem_auto, destino_auto = (trecho.split('X', 1) + [""])[:2] if 'X' in trecho else (trecho, "")
-            h_total = row.get('Plano_H_Ida', 0) + row.get('Plano_H_Volta', 0)
-            lh_rpm_calc = (row['Plano_H_Ida'] * row['Queima_Ida'] + row['Plano_H_Volta'] * row['Queima_Volta']) / h_total if h_total > 0 else row.get('Queima_Ida', 0)
+            
+            # Ajuste de segurança para cálculo de média no histórico
+            h_ida = row.get('Plano_H_Ida', 0)
+            h_volta = row.get('Plano_H_Volta', 0)
+            h_total = h_ida + h_volta
+            
+            q_ida = row.get('Queima_Ida', 0)
+            q_volta = row.get('Queima_Volta', 0)
+            
+            lh_rpm_calc = ((h_ida * q_ida) + (h_volta * q_volta)) / h_total if h_total > 0 else q_ida
 
             df_display.append({
-                "EDITAR": False,
                 "ID": 1001 + index,
-                "DATA SOLICITAÇÃO": row.get('Data', ''),
-                "DATA ENTREGA": row.get('Data_Entrega', ''),
+                "DATA": row.get('Data', ''),
                 "EMPURRADOR": row.get('Empurrador', ''),
-                "CICLO": row.get('Ciclo', ''),
                 "ORIGEM": origem_auto.strip(),
                 "DESTINO": destino_auto.strip(),
-                "LOCAL ABAST.": row.get('Local_Abast', ''),
                 "ODM ZARPE": row.get('ODM_Zarpe_Ida', 0),
                 "PLANO HORAS": h_total,
                 "L/H RPM": round(lh_rpm_calc, 2),
                 "ODM FIM": row.get('ODM_Fim_Final', 0)
             })
-
-        st.data_editor(pd.DataFrame(df_display), use_container_width=True, hide_index=True)
+        st.dataframe(pd.DataFrame(df_display), use_container_width=True, hide_index=True)
     else:
         st.info("Aguardando lançamentos no Cálculo de Memória...")
 
 #---------------------------------------------------------#
-# BLOCO 2 - CALCULO DE MÉMORIA (COM ENVIO NOTION)
+# BLOCO 2 - CALCULO DE MÉMORIA
 #---------------------------------------------------------#
 elif aba == "📝 Calculo de mémoria":
     st.header("📝 Calculo de mémoria (Ida e Volta)")
@@ -109,29 +113,26 @@ elif aba == "📝 Calculo de mémoria":
         saida = s_odm + o_comp
         cons = (t_hor * queima) + (h_mca * lts_mca) + (h_mano * lh_mano)
         chegada = saida - cons - transf
-        st.write(f"**ODM SAÍDA:** {saida:,.2f} | **CHEGADA:** {chegada:,.2f}")
+        st.info(f"**ODM SAÍDA:** {saida:,.2f} | **CHEGADA:** {chegada:,.2f}")
         return {"saida": saida, "chegada": chegada, "t_hor": t_hor, "queima": queima}
 
     with col_ida: res_i = entrada_dados("IDA")
     with col_volta: res_v = entrada_dados("VOLTA")
 
     if st.button("💾 FINALIZAR E SALVAR (ENVIAR PARA NOTION)", use_container_width=True, type="primary"):
-        # Cálculo da Média Ponderada para o Notion
         h_total = res_i['t_hor'] + res_v['t_hor']
         lh_ponderado = ((res_i['t_hor'] * res_i['queima']) + (res_v['t_hor'] * res_v['queima'])) / h_total if h_total > 0 else res_i['queima']
         odm_final = res_v['chegada'] if res_v['t_hor'] > 0 else res_i['chegada']
 
-        # 1. Dados para o Session State (Seu banco atual)
         nova_linha_data = {
-            "Empurrador": emp_m, "Data": data_m.strftime('%d/%m/%Y'), "Local": trecho_m,
+            "Empurrador": emp_m, "Data": data_m.strftime('%d/%m/%Y'), "Local": trecho_m.upper(),
             "ODM_Zarpe_Ida": res_i['saida'], "Plano_H_Ida": res_i['t_hor'], "Queima_Ida": res_i['queima'],
             "Plano_H_Volta": res_v['t_hor'], "Queima_Volta": res_v['queima'], "ODM_Fim_Final": odm_final
         }
         
-        # 2. Envio para o Notion
-        with st.spinner("Enviando dados para o Notion..."):
+        with st.spinner("Conectando ao Notion..."):
             dados_notion = {
-                "Empurrador": emp_m, "Data": data_m.strftime('%d/%m/%Y'), "Local": trecho_m,
+                "Empurrador": emp_m, "Data": data_m.strftime('%d/%m/%Y'), "Local": trecho_m.upper(),
                 "ODM_Zarpe_Ida": res_i['saida'], "Plano_Total": h_total,
                 "LH_Ponderado": round(lh_ponderado, 2), "ODM_Fim_Final": odm_final
             }
@@ -139,7 +140,8 @@ elif aba == "📝 Calculo de mémoria":
 
         if res_notion.status_code == 200:
             st.session_state.db_comb = pd.concat([st.session_state.db_comb, pd.DataFrame([nova_linha_data])], ignore_index=True)
-            st.success("Salvo localmente e enviado ao Notion!")
-            st.rerun()
+            st.success("✅ Sucesso! Dados salvos na tabela e enviados ao Notion.")
+            st.balloons()
         else:
-            st.error(f"Erro ao enviar para Notion: {res_notion.status_code} - {res_notion.text}")
+            st.error(f"Erro no Notion ({res_notion.status_code}): {res_notion.text}")
+            st.warning("Dica: Verifique se os nomes das colunas no Notion são exatamente iguais aos do código.")
