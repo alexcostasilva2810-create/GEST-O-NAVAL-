@@ -13,11 +13,12 @@ empurradores_lista = [
     "QUARUBA", "TIMBORANA", "JATOBA"
 ]
 
-# BANCO DE DADOS UNIFICADO (Todas as colunas necessárias para as duas telas)
+# BANCO DE DADOS COMPLETO (Contém todos os campos das duas telas)
 if 'db_comb' not in st.session_state:
     st.session_state.db_comb = pd.DataFrame(columns=[
-        'SEL', 'Empurrador', 'Data', 'Saldo_Ant', 'Qtd_Sol', 
-        'ODM_Zarpe', 'Plano_H', 'LH_RPM', 'H_MCA', 'ODM_Fim', 'Local'
+        'SEL', 'Empurrador', 'Data', 'Solicitante', 'Origem', 'Saldo_Ant', 'Qtd_Sol', 
+        'ODM_Zarpe', 'H_Ini_Ida', 'H_Fim_Ida', 'Media_Ida', 'H_Ini_Volta', 'H_Fim_Volta', 
+        'Media_Volta', 'H_MCA', 'Media_Ponderada', 'Consumo_Total', 'Valor_NF', 'Local_Trecho'
     ])
 
 #----------------------------------#
@@ -32,60 +33,50 @@ aba = st.sidebar.radio("Navegação", ["⛽ Abastecimento", "📝 Calculo de mé
 if aba == "⛽ Abastecimento":
     st.header("⛽ Lançamento de Abastecimento")
     
-    col1, col2, col3 = st.columns([1, 1, 1])
+    col1, col2, col3, col4 = st.columns(4)
     with col1:
         emp = st.selectbox("EMPURRADOR", empurradores_lista, key="t1_emp")
         data_sol = st.date_input("DATA", format="DD/MM/YYYY", key="t1_data")
+        solicitante = st.text_input("SOLICITANTE", value="ALEX", key="t1_soli")
     with col2:
+        origem = st.text_input("ORIGEM / LOCAL", key="t1_orig")
         saldo_ant = st.number_input("SALDO ANTERIOR (L)", min_value=0.0, step=1.0, key="t1_saldo")
         qtd_sol = st.number_input("QTD. SOLICITADA (L)", min_value=0.0, step=1.0, key="t1_qtd")
-        odm_z = saldo_ant + qtd_sol
-        st.success(f"⚓ TOTAL NO TANQUE: {odm_z:,.2f}")
     with col3:
-        origem = st.text_input("LOCAL / NF", key="t1_local")
+        odm_z = saldo_ant + qtd_sol
+        st.success(f"⚓ ODM ZARPE: {odm_z:,.2f}")
+        valor_nf = st.number_input("VALOR TOTAL R$ (NF)", min_value=0.0, key="t1_nf")
+    with col4:
+        st.write("---")
         if st.button("✅ SALVAR ABASTECIMENTO", use_container_width=True, type="primary"):
             nova_l = pd.DataFrame([{
                 "SEL": False, "Empurrador": emp, "Data": data_sol.strftime('%d/%m/%Y'), 
-                "Saldo_Ant": saldo_ant, "Qtd_Sol": qtd_sol, "ODM_Zarpe": odm_z, 
-                "Plano_H": 0.0, "LH_RPM": 0.0, "H_MCA": 0.0, 
-                "ODM_Fim": odm_z, "Local": origem
+                "Solicitante": solicitante, "Origem": origem, "Saldo_Ant": saldo_ant, 
+                "Qtd_Sol": qtd_sol, "ODM_Zarpe": odm_z, "Valor_NF": valor_nf,
+                "Consumo_Total": 0.0, "Media_Ponderada": 0.0 # Campos de consumo zerados no abastecimento
             }])
             st.session_state.db_comb = pd.concat([st.session_state.db_comb, nova_l], ignore_index=True)
             st.rerun()
 
     st.divider()
-    st.subheader("📋 Tabela Geral de Combustível")
+    st.subheader("📋 Tabela Geral de Registros")
     if not st.session_state.db_comb.empty:
-        tabela_editada = st.data_editor(
-            st.session_state.db_comb, 
-            use_container_width=True, 
-            hide_index=True, 
-            column_config={"SEL": st.column_config.CheckboxColumn("SEL", default=False)}, 
-            key="ed_geral"
-        )
-        # Sincroniza a edição direta na tabela
-        if not tabela_editada.equals(st.session_state.db_comb):
-            st.session_state.db_comb = tabela_editada
-            st.rerun()
-
-        if st.button("🗑️ Excluir Selecionados"):
-            st.session_state.db_comb = st.session_state.db_comb[st.session_state.db_comb["SEL"] == False]
-            st.rerun()
+        st.data_editor(st.session_state.db_comb, use_container_width=True, hide_index=True, key="ed_geral")
 
 #----------------------------------#
-# BLOCO 2 - CALCULO DE MÉMORIA
+# BLOCO 2 - CALCULO DE MÉMORIA (COM MÉDIA PONDERADA)
 #----------------------------------#
 elif aba == "📝 Calculo de mémoria":
-    st.header("📝 Calculo de mémoria (Ida e Volta)")
+    st.header("📝 Calculo de mémoria com Média Ponderada")
     
-    # Identificação
+    # Identificação Geral
     c_id1, c_id2, c_id3 = st.columns(3)
     with c_id1:
         emp_m = st.selectbox("EMPURRADOR", empurradores_lista, key="t2_emp")
     with c_id2:
         data_m = st.date_input("DATA DA VIAGEM", key="t2_data")
     with c_id3:
-        trecho_m = st.text_input("TRECHO GERAL", key="t2_trecho")
+        trecho_m = st.text_input("TRECHO / SERVIÇO", key="t2_trecho")
 
     st.divider()
 
@@ -99,7 +90,7 @@ elif aba == "📝 Calculo de mémoria":
         media_i = st.number_input("MÉDIA L/H (IDA)", value=0.0, key="m_i")
         horas_i = h_fim_i - h_ini_i
         cons_i = horas_i * media_i
-        st.info(f"Consumo Ida: {cons_i:.2f} L")
+        st.info(f"Horas: {horas_i:.1f}h | Consumo: {cons_i:.2f}L")
 
     with col_volta:
         st.subheader("🔙 PERCURSO: VOLTA")
@@ -108,38 +99,51 @@ elif aba == "📝 Calculo de mémoria":
         media_v = st.number_input("MÉDIA L/H (VOLTA)", value=0.0, key="m_v")
         horas_v = h_fim_v - h_ini_v
         cons_v = horas_v * media_v
-        st.info(f"Consumo Volta: {cons_v:.2f} L")
+        st.info(f"Horas: {horas_v:.1f}h | Consumo: {cons_v:.2f}L")
 
     st.divider()
     
-    # MCA e Botão de Salvar
+    # Cálculos Finais (Média Ponderada)
     res1, res2, res3 = st.columns(3)
     with res1:
         h_mca_m = st.number_input("HORAS MCA (GERAL)", value=0.0, key="t2_mca")
         cons_mca = h_mca_m * 7.0
+        st.write(f"Consumo MCA: {cons_mca:.2f}L")
+        
     with res2:
-        total_consumo = cons_i + cons_v + cons_mca
-        st.error(f"📉 CONSUMO TOTAL: {total_consumo:,.2f} L")
+        total_horas = horas_i + horas_v
+        total_cons_motores = cons_i + cons_v
+        
+        # --- CÁLCULO MÉDIA PONDERADA (IGUAL AO EXCEL) ---
+        if total_horas > 0:
+            media_ponderada = total_cons_motores / total_horas
+        else:
+            media_ponderada = 0.0
+            
+        st.metric("MÉDIA PONDERADA L/H", f"{media_ponderada:.2f}")
+
     with res3:
-        st.write("---")
+        total_geral_consumo = total_cons_motores + cons_mca
+        st.error(f"📉 CONSUMO TOTAL GERAL: {total_geral_consumo:,.2f} L")
+        
         if st.button("💾 SALVAR E INTEGRAR", use_container_width=True, type="primary"):
             nova_med = pd.DataFrame([{
                 "SEL": False, 
                 "Empurrador": emp_m, 
-                "Data": data_m.strftime('%d/%m/%Y'), 
-                "Saldo_Ant": 0.0, "Qtd_Sol": 0.0, "ODM_Zarpe": 0.0, # Campos vazios para medição
-                "Plano_H": horas_i + horas_v, 
-                "LH_RPM": (media_i + media_v)/2 if (media_i + media_v) > 0 else 0, 
-                "H_MCA": h_mca_m, 
-                "ODM_Fim": total_consumo, 
-                "Local": trecho_m
+                "Data": data_m.strftime('%d/%m/%Y'),
+                "Local_Trecho": trecho_m,
+                "H_Ini_Ida": h_ini_i, "H_Fim_Ida": h_fim_i, "Media_Ida": media_i,
+                "H_Ini_Volta": h_ini_v, "H_Fim_Volta": h_fim_v, "Media_Volta": media_v,
+                "H_MCA": h_mca_m,
+                "Media_Ponderada": media_ponderada,
+                "Consumo_Total": total_geral_consumo
             }])
             st.session_state.db_comb = pd.concat([st.session_state.db_comb, nova_med], ignore_index=True)
-            st.success("Medição enviada para a Tabela Geral!")
+            st.success("✅ Cálculo de Memória salvo na Tabela Geral!")
             st.rerun()
 
 #----------------------------------#
-# BLOCO 3 - RANCHO / BLOCO 4 - DASHBOARD
+# BLOCOS RESTANTES
 #----------------------------------#
 elif aba == "🛒 Rancho":
     st.header("🛒 Gestão de Rancho")
