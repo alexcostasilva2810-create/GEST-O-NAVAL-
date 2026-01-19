@@ -40,7 +40,7 @@ st.sidebar.title("🚢 Menu de Gestão")
 aba = st.sidebar.radio("Navegação", ["⛽ Combustível", "🍱 Rancho", "📊 Dashboard & Relatórios"])
 
 #----------------------------------#
-# TELA: COMBUSTÍVEL (ESTILO ORIGINAL)
+# TELA: COMBUSTÍVEL (VISUAL ORIGINAL + CÁLCULO ATIVADO)
 #----------------------------------#
 if aba == "⛽ Combustível":
     st.header("⛽ Gestão de Combustível")
@@ -54,10 +54,14 @@ if aba == "⛽ Combustível":
             solicitante = st.text_input("SOLICITANTE", value="ALEX")
             origem = st.text_input("ORIGEM")
         with c2:
-            saldo_ant = st.number_input("SALDO ANTERIOR (Litros)", min_value=0.0)
-            qtd_sol = st.number_input("QTD. SOLICITADA (Litros)", min_value=0.0)
+            # CAMPOS DO CÁLCULO MATEMÁTICO
+            saldo_ant = st.number_input("SALDO ANTERIOR (Litros)", min_value=0.0, step=1.0)
+            qtd_sol = st.number_input("QTD. SOLICITADA (Litros)", min_value=0.0, step=1.0)
+            
+            # A SOMA AUTOMÁTICA QUE APARECE NA TELA
             total_t = saldo_ant + qtd_sol
-            st.info(f"📊 TOTAL NO TANQUE: {total_t:.2f} L")
+            st.info(f"📊 TOTAL NO TANQUE: {total_t:,.2f} L")
+            
             odm_z = st.number_input("ODM ZARPE", step=0.1)
         with c3:
             plano_h = st.number_input("PLANO HORAS", step=0.1)
@@ -67,14 +71,16 @@ if aba == "⛽ Combustível":
         with c4:
             mes_ref = st.selectbox("MÊS/ANO", ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"])
             local = st.text_input("LOCAL")
-            valor_c = st.number_input("VALOR TOTAL R$ (Diesel)", min_value=0.0) # Onde entra a NF depois
+            balsas = st.text_input("BALSAS")
+            valor_c = st.number_input("VALOR TOTAL R$ (Diesel)", min_value=0.0)
             
         if st.form_submit_button("Salvar Abastecimento"):
             data_br = data_sol.strftime('%d/%m/%Y')
+            # Salvando o resultado da soma (total_t) na coluna de Litros
             novo_c = pd.DataFrame([[emp, data_br, total_t, valor_c]], 
                                   columns=['Empurrador', 'Data', 'Litros', 'Valor_Comb'])
             st.session_state.db_comb = pd.concat([st.session_state.db_comb, novo_c], ignore_index=True)
-            st.success(f"✅ Salvo com sucesso!")
+            st.success(f"✅ Salvo com sucesso! Total: {total_t:,.2f} Litros.")
             st.rerun()
 
     # 2. TABELA DE REGISTROS (Abaixo do formulário)
@@ -83,19 +89,20 @@ if aba == "⛽ Combustível":
     if not st.session_state.db_comb.empty:
         st.dataframe(st.session_state.db_comb, use_container_width=True)
         
-        # 3. BLOCO DE AJUSTE (Para quando a NF chegar)
+        # 3. BLOCO DE AJUSTE (Para trocar o valor 0,00 pela Nota Fiscal depois)
         st.markdown("---")
         st.write("🔧 **Ajustar Valor de Nota Fiscal ou Remover Registro**")
         col_aj1, col_aj2, col_aj3 = st.columns([1, 1, 1])
         
         with col_aj1:
-            id_edit = st.number_input("ID da Linha:", min_value=0, step=1)
+            id_edit = st.number_input("ID da Linha (número à esquerda):", min_value=0, step=1)
         with col_aj2:
-            nova_nf = st.number_input("Novo Valor R$:", min_value=0.0)
+            nova_nf = st.number_input("Novo Valor da Nota (R$):", min_value=0.0)
         
         if col_aj1.button("💾 Atualizar NF"):
+            # Atualiza o valor na tabela sem mexer no resto
             st.session_state.db_comb.at[id_edit, 'Valor_Comb'] = nova_nf
-            st.success("Valor atualizado!")
+            st.success(f"Valor da linha {id_edit} atualizado!")
             st.rerun()
             
         if col_aj3.button("🗑️ Excluir Linha"):
