@@ -1,56 +1,54 @@
 import streamlit as st
 import pandas as pd
+import plotly.express as px
 
-st.set_page_config(page_title="Gestão Naval", layout="wide")
-
-# Lista de Empurradores (ID comum)
-EMPURRADORES = ["EMPURRADOR 01", "EMPURRADOR 02", "EMPURRADOR 03"]
+# Simulando dados (Em breve conectaremos com sua planilha oficial)
+# Aqui o sistema vai ler tudo o que você salvou
+if 'dados_combustivel' not in st.session_state:
+    st.session_state.dados_combustivel = pd.DataFrame(columns=['EMPURRADOR', 'MES', 'LITROS', 'TOTAL_RS'])
+if 'dados_rancho' not in st.session_state:
+    st.session_state.dados_rancho = pd.DataFrame(columns=['EMPURRADOR', 'MES', 'TOTAL_RS'])
 
 st.sidebar.title("Navegação")
-aba = st.sidebar.radio("Ir para:", ["Combustível", "Rancho", "Escolta"])
+aba = st.sidebar.radio("Ir para:", ["Combustível", "Rancho", "Relatório Geral", "Dashboard"])
 
-if aba == "Combustível":
-    st.header("⛽ Gestão de Combustível")
-    with st.form("form_comb"):
-        c1, c2, c3, c4 = st.columns(4)
-        with c1:
-            st.selectbox("EMPURRADOR", EMPURRADORES)
-            st.date_input("DATA SOLICITAÇÃO")
-            st.text_input("SOLICITANTE")
-            st.text_input("ORIGEM")
-            st.text_input("DESTINO")
-        with c2:
-            st.number_input("ODM ZARPE")
-            st.number_input("PLANO HORAS")
-            st.number_input("L/H RPM")
-            st.number_input("H. MANOBRA")
-        with c3:
-            st.number_input("L/H MANOBRA")
-            st.number_input("H MCA")
-            st.text_input("TRANSF. BALSA")
-            st.number_input("ODM FIM")
-        with c4:
-            st.text_input("MÊS/ANO")
-            st.text_input("BALSAS")
-            st.text_input("LOCAL")
-            st.number_input("LITROS")
-            
-        st.form_submit_button("Salvar Abastecimento")
+# --- ABA RELATÓRIO GERAL ---
+if aba == "Relatório Geral":
+    st.header("📋 Relatório Consolidado por Empurrador")
+    
+    emp_filtro = st.selectbox("Selecione o Empurrador para análise", ["Todos"] + ["EMPURRADOR 01", "EMPURRADOR 02"])
+    mes_filtro = st.selectbox("Mês de Competência", ["Janeiro", "Fevereiro", "Março"])
 
-elif aba == "Rancho":
-    st.header("🍱 Gestão de Rancho")
-    with st.form("form_rancho"):
-        r1, r2 = st.columns(2)
-        with r1:
-            st.selectbox("EMPURRADOR", EMPURRADORES)
-            st.text_input("ALERTA")
-            st.text_input("COMPRADOR")
-            st.text_input("SC")
-            st.text_input("SOLICITANTE")
-        with r2:
-            st.date_input("DATA SOLICITAÇÃO")
-            st.date_input("ENTREGA")
-            st.number_input("DIAS PROXIMO", step=1)
-            st.text_area("DESCRIÇÃO DO MATERIAL")
-            
-        st.form_submit_button("Salvar Rancho")
+    # Tabela resumo que você pediu
+    st.subheader(f"Resumo de Gastos - {mes_filtro}")
+    
+    # Exemplo de como a tabela aparecerá:
+    data_exemplo = {
+        'Empurrador': ['EMPURRADOR 01'],
+        'Qtd Abastecimentos': [4],
+        'Total Litros': [12500],
+        'Gasto Combustível (R$)': [75000.00],
+        'Qtd Ranchos': [2],
+        'Gasto Rancho (R$)': [4200.00],
+        'Custo Total (R$)': [79200.00]
+    }
+    df_resumo = pd.DataFrame(data_exemplo)
+    st.table(df_resumo)
+
+# --- ABA DASHBOARD ---
+elif aba == "Dashboard":
+    st.header("📊 Dashboard de Indicadores")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.subheader("Custos Totais por Categoria")
+        # Gráfico de Pizza que você pediu
+        fig_pizza = px.pie(values=[75000, 4200], names=['Combustível', 'Rancho'], title="Distribuição de Gastos")
+        st.plotly_chart(fig_pizza)
+        
+    with col2:
+        st.subheader("Consumo de Litros por Empurrador")
+        # Gráfico de Barras que você pediu
+        fig_barra = px.bar(x=["Emp 01", "Emp 02", "Emp 03"], y=[12000, 9500, 15000], title="Litros Comprados", labels={'x':'Empurrador', 'y':'Litros'})
+        st.plotly_chart(fig_barra)
