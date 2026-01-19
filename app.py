@@ -19,64 +19,94 @@ st.sidebar.title("🚢 Menu de Gestão")
 aba = st.sidebar.radio("Navegação", ["⛽ Abastecimento", "📝 Calculo de mémoria", "🛒 Rancho", "📊 Dashboard"])
 
 #---------------------------------------------------------#
-# BLOCO 1 - ABASTECIMENTO (VERSÃO INCREMENTADA)
+# BLOCO 1 - ABASTECIMENTO (COM TRAVA DE EDIÇÃO E SALVAMENTO)
 #---------------------------------------------------------#
 if aba == "⛽ Abastecimento":
-    st.header("⛽ Tabela de Abastecimento e Movimentação")
+    st.header("⛽ Controle de Abastecimento")
+    st.caption("Selecione a linha na coluna 'EDITAR' para liberar o preenchimento manual.")
     
     if not st.session_state.db_comb.empty:
-        df_abast = []
-        # Criamos o ID baseado no índice da linha + 1000 para ficar profissional
+        # 1. PROCESSAMENTO DOS DADOS PARA EXIBIÇÃO
+        df_display = []
         for index, row in st.session_state.db_comb.iterrows():
-            
-            # Tratar Origem e Destino pelo "X"
+            # Lógica de Origem/Destino
             trecho = str(row.get('Local', '')).upper()
             origem_auto, destino_auto = (trecho.split('X', 1) + [""])[:2] if 'X' in trecho else (trecho, "")
 
-            # Matemática L/H RPM (Média Ponderada)
-            h_total = row['Plano_H_Ida'] + row['Plano_H_Volta']
+            # Matemática Média Ponderada
+            h_total = row.get('Plano_H_Ida', 0) + row.get('Plano_H_Volta', 0)
             if h_total > 0:
                 lh_rpm_calc = (row['Plano_H_Ida'] * row['Queima_Ida'] + row['Plano_H_Volta'] * row['Queima_Volta']) / h_total
             else:
-                lh_rpm_calc = row['Queima_Ida']
+                lh_rpm_calc = row.get('Queima_Ida', 0)
 
-            df_abast.append({
-                "ID": 1001 + index,  # ID Único para cada registro
-                "DATA SOLICITAÇÃO": row['Data'], # Puxa a data que foi lançada na memória
-                "DATA ENTREGA": "",              # Manual
-                "SOLICITANTE": "ALEX",
-                "EMPURRADOR": row['Empurrador'],
-                "CICLO": "",                     # Manual
-                "MÊS/ANO": row['Mes_Ano'],
+            df_display.append({
+                "EDITAR": False, # Checkbox para liberar edição
+                "ID": 1001 + index,
+                "DATA SOLICITAÇÃO": row.get('Data', ''),
+                "DATA ENTREGA": row.get('Data_Entrega', ''), # Busca do banco
+                "EMPURRADOR": row.get('Empurrador', ''),
+                "CICLO": row.get('Ciclo', ''),               # Busca do banco
                 "ORIGEM": origem_auto.strip(),
                 "DESTINO": destino_auto.strip(),
-                "LOCAL ABAST.": "",              # Manual
-                "ODM ZARPE": row['ODM_Zarpe_Ida'],
-                "ODM COMPRA": row.get('ODM_Compra_Ida', 0.0), # Puxa automático da IDA
+                "LOCAL ABAST.": row.get('Local_Abast', ''), # Busca do banco
+                "ODM ZARPE": row.get('ODM_Zarpe_Ida', 0),
+                "ODM COMPRA": row.get('ODM_Compra_Ida', 0),
                 "PLANO HORAS": h_total,
                 "L/H RPM": round(lh_rpm_calc, 2),
-                "H. MANOBRA": row['H_Mano_Ida'] + row['H_Mano_Volta'],
-                "L/H MANOBRA": row['LH_Mano_Ida'] + row['LH_Mano_Volta'],
-                "H MCA": row['H_MCA_Ida'] + row['H_MCA_Volta'],
-                "ODM FIM": row['ODM_Fim_Final']
+                "H MCA": row.get('H_MCA_Ida', 0) + row.get('H_MCA_Volta', 0),
+                "ODM FIM": row.get('ODM_Fim_Final', 0)
             })
 
-        # Exibição com Colunas Editáveis (DATA ENTREGA, LOCAL ABAST, CICLO)
-        st.data_editor(
-            pd.DataFrame(df_abast), 
-            use_container_width=True, 
-            hide_index=True, 
+        df_editor = pd.DataFrame(df_display)
+
+        # 2. O EDITOR DE DADOS (Configurado para editar apenas campos manuais)
+        # O usuário só consegue editar se marcar o checkbox 'EDITAR'
+        editado = st.data_editor(
+            df_editor,
+            use_container_width=True,
+            hide_index=True,
             column_config={
-                "ID": st.column_config.NumberColumn("ID", help="Número de registro único"),
-                "DATA ENTREGA": st.column_config.TextColumn("DATA ENTREGA", help="Digite a data: DD/MM/YY"),
+                "EDITAR": st.column_config.CheckboxColumn("EDITAR", help="Marque para editar esta linha"),
+                "ID": st.column_config.Column(disabled=True),
+                "DATA SOLICITAÇÃO": st.column_config.Column(disabled=True),
+                "EMPURRADOR": st.column_config.Column(disabled=True),
+                "ORIGEM": st.column_config.Column(disabled=True),
+                "DESTINO": st.column_config.Column(disabled=True),
+                "ODM ZARPE": st.column_config.Column(disabled=True),
+                "ODM COMPRA": st.column_config.Column(disabled=True),
+                "PLANO HORAS": st.column_config.Column(disabled=True),
+                "L/H RPM": st.column_config.Column(disabled=True),
+                "H MCA": st.column_config.Column(disabled=True),
+                "ODM FIM": st.column_config.Column(disabled=True),
+                # Campos liberados
+                "DATA ENTREGA": st.column_config.TextColumn("DATA ENTREGA"),
                 "LOCAL ABAST.": st.column_config.TextColumn("LOCAL ABAST."),
                 "CICLO": st.column_config.TextColumn("CICLO"),
-                "ODM ZARPE": st.column_config.NumberColumn(format="%.0f"),
-                "ODM COMPRA": st.column_config.NumberColumn(format="%.0f"),
-                "ODM FIM": st.column_config.NumberColumn(format="%.0f"),
             },
-            key="view_abast_v2"
+            key="editor_abast_v3"
         )
+
+        # 3. BOTÃO PARA GRAVAR ALTERAÇÕES
+        col_btn1, col_btn2 = st.columns([1, 4])
+        with col_btn1:
+            if st.button("💾 Gravar Alterações", type="primary", use_container_width=True):
+                # Atualiza o banco de dados original (session_state) com o que foi digitado
+                for i, row_edit in editado.iterrows():
+                    if row_edit["EDITAR"]: # Só atualiza se o checkbox estiver marcado
+                        st.session_state.db_comb.at[i, 'Data_Entrega'] = row_edit['DATA ENTREGA']
+                        st.session_state.db_comb.at[i, 'Local_Abast'] = row_edit['LOCAL ABAST.']
+                        st.session_state.db_comb.at[i, 'Ciclo'] = row_edit['CICLO']
+                
+                st.success("Dados gravados com sucesso!")
+                st.rerun()
+        
+        with col_btn2:
+            if st.button("🗑️ Excluir Selecionados"):
+                linhas_para_manter = [i for i, r in editado.iterrows() if not r["EDITAR"]]
+                st.session_state.db_comb = st.session_state.db_comb.iloc[linhas_para_manter].reset_index(drop=True)
+                st.rerun()
+
     else:
         st.info("Aguardando lançamentos no Cálculo de Memória...")
 #---------------------------------------------------------#
