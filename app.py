@@ -40,71 +40,101 @@ st.sidebar.title("🚢 Menu de Gestão")
 aba = st.sidebar.radio("Navegação", ["⛽ Combustível", "🍱 Rancho", "📊 Dashboard & Relatórios"])
 
 #----------------------------------#
-# TELA: COMBUSTÍVEL (DINÂMICA EXCEL)
+# TELA: COMBUSTÍVEL (ESTILO PLANILHA DINÂMICA)
 #----------------------------------#
 if aba == "⛽ Combustível":
     st.header("⛽ Gestão de Combustível")
-    
-    with st.form("form_comb"):
-        c1, c2, c3, c4 = st.columns(4)
-        
-        with c1:
-            emp = st.selectbox("EMPURRADOR", empurradores_lista)
-            data_sol = st.date_input("DATA SOLICITAÇÃO", format="DD/MM/YYYY")
-            solicitante = st.text_input("SOLICITANTE", value="ALEX")
-            origem = st.text_input("ORIGEM")
-            
-        with c2:
-            saldo_ant = st.number_input("SALDO ANTERIOR (L)", min_value=0.0)
-            qtd_sol = st.number_input("QTD. SOLICITADA (L)", min_value=0.0)
-            # Soma do tanque (conforme pedido anteriormente)
-            total_t = saldo_ant + qtd_sol
-            st.info(f"📊 TOTAL NO TANQUE: {total_t:,.2f} L")
-            odm_z = st.number_input("ODM ZARPE", value=0.0, step=0.1)
-            
-        with c3:
-            plano_h = st.number_input("PLANO HORAS", value=0.0, step=0.1)
-            lh_rpm = st.number_input("L/H RPM", value=0.0, step=0.1)
-            h_manobra = st.number_input("H. MANOBRA", value=0.0, step=0.1)
-            lh_manobra = st.number_input("L/H MANOBRA", value=0.0, step=0.1)
-            
-        with c4:
-            h_mca = st.number_input("H MCA", value=0.0, step=0.1)
-            transf_balsa = st.number_input("TRANSF. BALSA", value=0.0, step=0.1)
-            
-            # --- CÁLCULO DA SUA FÓRMULA DO EXCEL ---
-            # ODM FIM = ODM ZARPE - (PLANO H * LH RPM) - (H MANOBRA * LH MANOBRA) - (H MCA * 7) - TRANSF BALSA
-            odm_fim = odm_z - (plano_h * lh_rpm) - (h_manobra * lh_manobra) - (h_mca * 7) - transf_balsa
-            
-            st.warning(f"📉 ODM FINAL CALCULADO: {odm_fim:,.2f}")
-            
-            valor_nf = st.number_input("VALOR TOTAL R$ (Nota Fiscal)", min_value=0.0)
-            local = st.text_input("LOCAL")
 
-        if st.form_submit_button("✅ Salvar Abastecimento"):
-            data_br = data_sol.strftime('%d/%m/%Y')
-            nova_linha = pd.DataFrame([[emp, data_br, total_t, odm_fim, valor_nf]], 
-                                     columns=['Empurrador', 'Data', 'Litros', 'ODM_Fim', 'Valor_Comb'])
+    # Variável para controlar se estamos editando
+    if 'idx_edit' not in st.session_state:
+        st.session_state.idx_edit = None
+
+    # --- BLOCO DE ENTRADA (FORA DO FORM PARA SER AUTOMÁTICO) ---
+    st.subheader("📝 Lançamento Operacional")
+    
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
+        emp = st.selectbox("EMPURRADOR", empurradores_lista)
+        data_sol = st.date_input("DATA SOLICITAÇÃO", format="DD/MM/YYYY")
+        solicitante = st.text_input("SOLICITANTE", value="ALEX")
+        origem = st.text_input("ORIGEM")
+        
+    with col2:
+        saldo_ant = st.number_input("SALDO ANTERIOR (L)", min_value=0.0, step=1.0)
+        qtd_sol = st.number_input("QTD. SOLICITADA (L)", min_value=0.0, step=1.0)
+        # SOMA INSTANTÂNEA
+        total_tanque = saldo_ant + qtd_sol
+        st.info(f"📊 TOTAL NO TANQUE: {total_tanque:,.2f} L")
+        odm_zarpe = st.number_input("ODM ZARPE", value=0.0, step=0.1)
+
+    with col3:
+        plano_h = st.number_input("PLANO HORAS", value=0.0, step=0.1)
+        lh_rpm = st.number_input("L/H RPM", value=0.0, step=0.1)
+        h_manobra = st.number_input("H. MANOBRA", value=0.0, step=0.1)
+        lh_manobra = st.number_input("L/H MANOBRA", value=0.0, step=0.1)
+
+    with col4:
+        h_mca = st.number_input("H MCA", value=0.0, step=0.1)
+        transf_balsa = st.number_input("TRANSF. BALSA", value=0.0, step=0.1)
+        
+        # CÁLCULO DA FÓRMULA AUTOMÁTICO DURANTE A DIGITAÇÃO
+        odm_final = odm_zarpe - (plano_h * lh_rpm) - (h_manobra * lh_manobra) - (h_mca * 7) - transf_balsa
+        
+        st.error(f"📉 ODM FINAL: {odm_final:,.2f}")
+        
+        valor_nf = st.number_input("VALOR TOTAL R$ (Nota Fiscal)", min_value=0.0)
+        local = st.text_input("LOCAL")
+
+    # BOTÕES DE AÇÃO
+    c_btn1, c_btn2 = st.columns(2)
+    if st.session_state.idx_edit is None:
+        if c_btn1.button("✅ Salvar Novo Lançamento", use_container_width=True):
+            nova_linha = pd.DataFrame([{
+                'ID': len(st.session_state.db_comb), 'Marcar': '', 'Empurrador': emp, 
+                'Data': data_sol.strftime('%d/%m/%Y'), 'Litros': total_tanque, 
+                'ODM_Fim': odm_final, 'Valor_Comb': valor_nf
+            }])
             st.session_state.db_comb = pd.concat([st.session_state.db_comb, nova_linha], ignore_index=True)
-            st.success(f"Registro salvo! ODM Final: {odm_fim:,.2f}")
+            st.rerun()
+    else:
+        if c_btn1.button("💾 SALVAR EDIÇÃO", type="primary", use_container_width=True):
+            idx = st.session_state.idx_edit
+            st.session_state.db_comb.at[idx, 'Empurrador'] = emp
+            st.session_state.db_comb.at[idx, 'Litros'] = total_tanque
+            st.session_state.db_comb.at[idx, 'ODM_Fim'] = odm_final
+            st.session_state.db_comb.at[idx, 'Valor_Comb'] = valor_nf
+            st.session_state.idx_edit = None
+            st.rerun()
+        if c_btn2.button("❌ Cancelar Edição", use_container_width=True):
+            st.session_state.idx_edit = None
             st.rerun()
 
-    # 2. TABELA COM ID PARA EDIÇÃO
+    # --- TABELA DE HISTÓRICO ---
     st.divider()
-    st.subheader("📋 Histórico de Lançamentos")
+    st.subheader("📋 Tabela de Registros")
+    
     if not st.session_state.db_comb.empty:
-        st.dataframe(st.session_state.db_comb, use_container_width=True)
-        
-        # Bloco de Edição/Exclusão por ID
-        col_ed, col_ex = st.columns(2)
-        idx = col_ed.number_input("ID para ajustar Nota Fiscal ou Excluir:", min_value=0, step=1)
-        
-        if col_ed.button("✏️ Editar Valor da NF"):
-            # Aqui você pode carregar para editar como fizemos antes
-            st.info("Função de edição ativa para o ID selecionado.")
+        # Atualiza a coluna de marcação visual
+        df_visual = st.session_state.db_comb.copy()
+        if st.session_state.idx_edit is not None:
+            df_visual.at[st.session_state.idx_edit, 'Marcar'] = '📍 EDITANDO'
             
-        if col_ex.button("🗑️ Excluir Linha"):
-            st.session_state.db_comb = st.session_state.db_comb.drop(idx).reset_index(drop=True)
+        st.dataframe(df_visual, use_container_width=True, hide_index=True)
+        
+        # Bloco de comando para editar
+        st.write("---")
+        c_sel, c_ed, c_ex = st.columns([1, 1, 1])
+        id_escolhido = c_sel.number_input("Digite o ID para Marcar:", min_value=0, step=1)
+        
+        if c_ed.button("✏️ Marcar e Carregar para Editar"):
+            st.session_state.idx_edit = id_escolhido
+            st.rerun()
+            
+        if c_ex.button("🗑️ Excluir Definitivamente"):
+            st.session_state.db_comb = st.session_state.db_comb.drop(id_escolhido).reset_index(drop=True)
+            # Reajusta os IDs
+            st.session_state.db_comb['ID'] = st.session_state.db_comb.index
             st.rerun()
 #----------------------------------#
 # TELA: RANCHO
