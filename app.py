@@ -63,84 +63,87 @@ if aba == "⛽ Abastecimento":
     if not st.session_state.db_comb.empty:
         st.data_editor(st.session_state.db_comb, use_container_width=True, hide_index=True, key="ed_geral")
 
-#----------------------------------#
-# BLOCO 2 - CALCULO DE MÉMORIA (COM MÉDIA PONDERADA)
-#----------------------------------#
+#---------------------------------------------------------#
+# BLOCO 2 - CALCULO DE MÉMORIA (MATEMÁTICA OFICIAL ALEX)
+#---------------------------------------------------------#
 elif aba == "📝 Calculo de mémoria":
-    st.header("📝 Calculo de mémoria com Média Ponderada")
+    st.header("📝 Calculo de mémoria (Ida e Volta)")
     
-    # Identificação Geral
-    c_id1, c_id2, c_id3 = st.columns(3)
-    with c_id1:
-        emp_m = st.selectbox("EMPURRADOR", empurradores_lista, key="t2_emp")
-    with c_id2:
-        data_m = st.date_input("DATA DA VIAGEM", key="t2_data")
-    with c_id3:
-        trecho_m = st.text_input("TRECHO / SERVIÇO", key="t2_trecho")
+    # Identificação Superior
+    i1, i2, i3 = st.columns(3)
+    with i1: emp_m = st.selectbox("EMPURRADOR", empurradores_lista, key="v2_emp")
+    with i2: data_m = st.date_input("DATA DA VIAGEM", key="v2_data")
+    with i3: trecho_m = st.text_input("TRECHO / SERVIÇO", key="v2_trecho")
 
     st.divider()
 
-    # Colunas Lado a Lado: IDA e VOLTA
+    # Criamos as duas colunas: IDA e VOLTA
     col_ida, col_volta = st.columns(2)
 
+    # Função interna para não repetir código e garantir a mesma matemática nos dois lados
+    def processar_coluna(prefixo):
+        st.subheader(f"📍 PERCURSO: {prefixo}")
+        
+        # --- ENTRADAS MANUAIS ---
+        c1, c2 = st.columns(2)
+        with c1:
+            s_odm = st.number_input(f"SALDO DE ODM ({prefixo})", value=0.0, step=1.0, key=f"s_odm_{prefixo}")
+            o_compra = st.number_input(f"ODM COMPRA ({prefixo})", value=0.0, step=1.0, key=f"o_comp_{prefixo}")
+            t_plano = st.number_input(f"TOTAL PLANO DE HORAS ({prefixo})", value=0.0, step=0.1, key=f"t_plano_{prefixo}")
+            rpm = st.number_input(f"RPM ({prefixo})", value=0.0, key=f"rpm_{prefixo}")
+            queima = st.number_input(f"QUEIMA L/H ({prefixo})", value=0.0, key=f"queima_{prefixo}")
+        
+        with c2:
+            h_mca = st.number_input(f"HORAS DE MCA ({prefixo})", value=0.0, step=0.1, key=f"h_mca_{prefixo}")
+            lts_queima_mca = st.number_input(f"LTS QUEIMA MCA (6.5, 7 ou 8) ({prefixo})", value=7.0, step=0.5, key=f"lts_mca_{prefixo}")
+            h_manobra = st.number_input(f"HORA DE MANOBRA ({prefixo})", value=0.0, key=f"h_mano_{prefixo}")
+            lh_manobra = st.number_input(f"L/H MANOBRA ({prefixo})", value=0.0, key=f"lh_mano_{prefixo}")
+            transf_bt = st.number_input(f"TRANSFERÊNCIA BT ({prefixo})", value=0.0, key=f"transf_{prefixo}")
+
+        # --- MATEMÁTICA APLICADA ---
+        o_saida = s_odm + o_compra
+        dias_consumo = h_mca / 24 if h_mca > 0 else 0
+        cons_mca = h_mca * lts_queima_mca
+        cons_mcp = t_plano * queima
+        cons_manobra = h_manobra * lh_manobra
+        
+        # RESULTADOS FINAIS DO PERCURSO
+        chegada = o_saida - cons_mca - cons_mcp - cons_manobra - transf_bt
+        total_consumo = cons_mca + cons_mcp + cons_manobra
+        
+        # EXIBIÇÃO DOS RESULTADOS (IGUAL AO VÍDEO)
+        st.markdown(f"**ODM SAÍDA:** {o_saida:,.2f} L")
+        st.markdown(f"**DIAS CONSUMO:** {dias_consumo:.2f} Dias")
+        st.success(f"🏁 VAI CHEGAR COM: {chegada:,.2f} L")
+        st.error(f"🔥 TOTAL CONSUMO {prefixo}: {total_consumo:,.2f} L")
+        
+        return {
+            "saida": o_saida, "chegada": chegada, "consumo": total_consumo,
+            "mcp": cons_mcp, "mca": cons_mca, "mano": cons_manobra, "transf": transf_bt
+        }
+
     with col_ida:
-        st.subheader("🚀 PERCURSO: IDA")
-        h_ini_i = st.number_input("HORÍMETRO INICIAL (IDA)", value=0.0, key="h_i_i")
-        h_fim_i = st.number_input("HORÍMETRO FINAL (IDA)", value=0.0, key="h_f_i")
-        media_i = st.number_input("MÉDIA L/H (IDA)", value=0.0, key="m_i")
-        horas_i = h_fim_i - h_ini_i
-        cons_i = horas_i * media_i
-        st.info(f"Horas: {horas_i:.1f}h | Consumo: {cons_i:.2f}L")
-
-    with col_volta:
-        st.subheader("🔙 PERCURSO: VOLTA")
-        h_ini_v = st.number_input("HORÍMETRO INICIAL (VOLTA)", value=0.0, key="h_i_v")
-        h_fim_v = st.number_input("HORÍMETRO FINAL (VOLTA)", value=0.0, key="h_f_v")
-        media_v = st.number_input("MÉDIA L/H (VOLTA)", value=0.0, key="m_v")
-        horas_v = h_fim_v - h_ini_v
-        cons_v = horas_v * media_v
-        st.info(f"Horas: {horas_v:.1f}h | Consumo: {cons_v:.2f}L")
-
-    st.divider()
+        res_ida = processar_coluna("IDA")
     
-    # Cálculos Finais (Média Ponderada)
-    res1, res2, res3 = st.columns(3)
-    with res1:
-        h_mca_m = st.number_input("HORAS MCA (GERAL)", value=0.0, key="t2_mca")
-        cons_mca = h_mca_m * 7.0
-        st.write(f"Consumo MCA: {cons_mca:.2f}L")
-        
-    with res2:
-        total_horas = horas_i + horas_v
-        total_cons_motores = cons_i + cons_v
-        
-        # --- CÁLCULO MÉDIA PONDERADA (IGUAL AO EXCEL) ---
-        if total_horas > 0:
-            media_ponderada = total_cons_motores / total_horas
-        else:
-            media_ponderada = 0.0
-            
-        st.metric("MÉDIA PONDERADA L/H", f"{media_ponderada:.2f}")
+    with col_volta:
+        res_volta = processar_coluna("VOLTA")
 
-    with res3:
-        total_geral_consumo = total_cons_motores + cons_mca
-        st.error(f"📉 CONSUMO TOTAL GERAL: {total_geral_consumo:,.2f} L")
-        
-        if st.button("💾 SALVAR E INTEGRAR", use_container_width=True, type="primary"):
-            nova_med = pd.DataFrame([{
-                "SEL": False, 
-                "Empurrador": emp_m, 
-                "Data": data_m.strftime('%d/%m/%Y'),
-                "Local_Trecho": trecho_m,
-                "H_Ini_Ida": h_ini_i, "H_Fim_Ida": h_fim_i, "Media_Ida": media_i,
-                "H_Ini_Volta": h_ini_v, "H_Fim_Volta": h_fim_v, "Media_Volta": media_v,
-                "H_MCA": h_mca_m,
-                "Media_Ponderada": media_ponderada,
-                "Consumo_Total": total_geral_consumo
-            }])
-            st.session_state.db_comb = pd.concat([st.session_state.db_comb, nova_med], ignore_index=True)
-            st.success("✅ Cálculo de Memória salvo na Tabela Geral!")
-            st.rerun()
+    # Botão de Salvar que unifica os dois percursos na sua Tabela Geral
+    st.divider()
+    if st.button("💾 FINALIZAR MEMÓRIA E SALVAR NA TABELA", use_container_width=True, type="primary"):
+        nova_linha = pd.DataFrame([{
+            "SEL": False,
+            "Empurrador": emp_m,
+            "Data": data_m.strftime('%d/%m/%Y'),
+            "Local": trecho_m,
+            "ODM_Zarpe": res_ida['saida'], # Início da viagem
+            "ODM_Fim": res_volta['chegada'], # Fim da viagem completa
+            "Consumo_Total": res_ida['consumo'] + res_volta['consumo'],
+            "Transf": res_ida['transf'] + res_volta['transf']
+        }])
+        st.session_state.db_comb = pd.concat([st.session_state.db_comb, nova_linha], ignore_index=True)
+        st.success("Cálculo integrado com sucesso!")
+        st.rerun()
 
 #----------------------------------#
 # BLOCOS RESTANTES
