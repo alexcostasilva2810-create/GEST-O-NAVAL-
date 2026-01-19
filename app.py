@@ -40,78 +40,90 @@ st.sidebar.title("🚢 Menu de Gestão")
 aba = st.sidebar.radio("Navegação", ["⛽ Combustível", "🍱 Rancho", "📊 Dashboard & Relatórios"])
 
 #----------------------------------#
-# TELA: COMBUSTÍVEL (COM QUADRADO DE SELEÇÃO E CÁLCULO)
+# TELA: COMBUSTÍVEL (ESTILO PLANILHA COM CHECKBOX)
 #----------------------------------#
 if aba == "⛽ Combustível":
     st.header("⛽ Gestão de Combustível")
 
-    # 1. CÁLCULOS AUTOMÁTICOS (DURANTE A DIGITAÇÃO)
-    st.subheader("📝 Lançamento / Edição")
+    # 1. CÁLCULOS AUTOMÁTICOS DURANTE A DIGITAÇÃO
+    st.subheader("📝 Lançamento e Edição")
     
     col1, col2, col3, col4 = st.columns(4)
     with col1:
         emp = st.selectbox("EMPURRADOR", empurradores_lista)
         data_sol = st.date_input("DATA SOLICITAÇÃO", format="DD/MM/YYYY")
         solicitante = st.text_input("SOLICITANTE", value="ALEX")
+        origem = st.text_input("ORIGEM")
     with col2:
         saldo_ant = st.number_input("SALDO ANTERIOR (L)", min_value=0.0, step=1.0)
         qtd_sol = st.number_input("QTD. SOLICITADA (L)", min_value=0.0, step=1.0)
-        # SOMA AUTOMÁTICA NA TELA
-        total_tanque = saldo_ant + qtd_sol
-        st.info(f"📊 TOTAL NO TANQUE: {total_tanque:,.2f} L")
-    with col3:
+        # SOMA AUTOMÁTICA
+        total_t = saldo_ant + qtd_sol
+        st.info(f"📊 TOTAL NO TANQUE: {total_t:,.2f} L")
         odm_z = st.number_input("ODM ZARPE", value=0.0, step=0.1)
+    with col3:
         plano_h = st.number_input("PLANO HORAS", value=0.0, step=0.1)
         lh_rpm = st.number_input("L/H RPM", value=0.0, step=0.1)
-    with col4:
         h_manobra = st.number_input("H. MANOBRA", value=0.0, step=0.1)
         lh_manobra = st.number_input("L/H MANOBRA", value=0.0, step=0.1)
+    with col4:
         h_mca = st.number_input("H MCA", value=0.0, step=0.1)
         transf_balsa = st.number_input("TRANSF. BALSA", value=0.0, step=0.1)
         
-        # FÓRMULA AUTOMÁTICA (ODM FIM)
+        # FÓRMULA DO EXCEL AUTOMÁTICA
+        # ODM FIM = G - (H*I) - (J*K) - (L*7) - M
         odm_fim = odm_z - (plano_h * lh_rpm) - (h_manobra * lh_manobra) - (h_mca * 7) - transf_balsa
         st.error(f"📉 ODM FINAL: {odm_fim:,.2f}")
+        
+        valor_nf = st.number_input("VALOR TOTAL R$ (Nota Fiscal)", min_value=0.0)
 
     # BOTÕES DE SALVAR
-    c_btn1, c_btn2 = st.columns(2)
-    if c_btn1.button("✅ SALVAR NOVO / ATUALIZAR EDIÇÃO", use_container_width=True):
-        nova_l = pd.DataFrame([{
-            'Empurrador': emp, 'Data': data_sol.strftime('%d/%m/%Y'), 
-            'Total Tanque': total_tanque, 'ODM Fim': odm_fim, 'Valor R$': 0.0
+    c_save, c_clear = st.columns(2)
+    if c_save.button("✅ SALVAR LANÇAMENTO / EDIÇÃO", use_container_width=True, type="primary"):
+        nova_linha = pd.DataFrame([{
+            "SEL": False, "ID": len(st.session_state.db_comb), "Empurrador": emp, 
+            "Data": data_sol.strftime('%d/%m/%Y'), "Litros": total_t, 
+            "ODM_Fim": odm_fim, "Valor_NF": valor_nf
         }])
-        st.session_state.db_comb = pd.concat([st.session_state.db_comb, nova_l], ignore_index=True)
+        st.session_state.db_comb = pd.concat([st.session_state.db_comb, nova_linha], ignore_index=True)
         st.rerun()
 
-    # 2. TABELA COM O QUADRADO PARA MARCAR (SELECTION)
+    # 2. TABELA COM O QUADRADO (CHECKBOX) PARA MARCAR
     st.divider()
-    st.subheader("📋 Marque a linha para Editar ou Excluir")
+    st.subheader("📋 Histórico de Lançamentos")
+    st.write("Marque o quadrado na coluna **'SEL'** para selecionar a linha:")
 
     if not st.session_state.db_comb.empty:
-        # Aqui aparece o "Quadrado" para você marcar a linha
-        selecao = st.dataframe(
+        # data_editor cria os quadradinhos (checkbox) automaticamente para colunas Booleanas
+        tabela_editavel = st.data_editor(
             st.session_state.db_comb,
-            use_container_width=True,
-            on_select="rerun",
-            selection_mode="single" # Permite marcar apenas 1 quadrado por vez
+            column_config={
+                "SEL": st.column_config.CheckboxColumn("SEL", help="Marque para selecionar", default=False),
+            },
+            disabled=["ID", "Empurrador", "Data", "Litros", "ODM_Fim", "Valor_NF"],
+            hide_index=True,
+            use_container_width=True
         )
 
-        # Se você marcou o quadrado, o sistema mostra os botões de ação
-        if len(selecao.selection.rows) > 0:
-            idx_selecionado = selecao.selection.rows[0]
-            st.warning(f"📍 Linha {idx_selecionado} marcada para ação.")
+        # Lógica para identificar qual linha foi marcada com o X
+        linhas_marcadas = tabela_editavel[tabela_editavel["SEL"] == True]
+
+        if not linhas_marcadas.empty:
+            idx_selecionado = linhas_marcadas.index[0]
+            st.warning(f"📍 Linha {idx_selecionado} marcada no quadrado!")
             
-            col_edit, col_excluir = st.columns(2)
-            if col_edit.button("✏️ Carregar Dados para Corrigir"):
-                # Essa função vai carregar os dados para cima na próxima atualização
-                st.session_state.index_edicao = idx_selecionado
-                st.info("Dados carregados! Altere os campos no formulário acima.")
-                
-            if col_excluir.button("🗑️ Excluir Linha Marcada"):
+            b_ed, b_ex = st.columns(2)
+            if b_ed.button("✏️ Carregar para Corrigir"):
+                # Aqui você faria a lógica de carregar nos campos
+                st.info("Dados prontos para edição no formulário acima.")
+            
+            if b_ex.button("🗑️ Excluir Linha Marcada"):
                 st.session_state.db_comb = st.session_state.db_comb.drop(idx_selecionado).reset_index(drop=True)
+                # Reorganiza os IDs
+                st.session_state.db_comb['ID'] = st.session_state.db_comb.index
                 st.rerun()
     else:
-        st.info("Nenhum registro lançado ainda.")
+        st.info("Aguardando lançamentos...")
 #----------------------------------#
 # TELA: RANCHO
 #----------------------------------#
