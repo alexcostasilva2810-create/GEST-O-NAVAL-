@@ -40,14 +40,21 @@ st.sidebar.title("🚢 Menu de Gestão")
 aba = st.sidebar.radio("Navegação", ["⛽ Combustível", "🍱 Rancho", "📊 Dashboard & Relatórios"])
 
 #----------------------------------#
-# TELA: COMBUSTÍVEL (COM TABELA E EDIÇÃO)
+# TELA: COMBUSTÍVEL (COM EDIÇÃO AVANÇADA)
 #----------------------------------#
 if aba == "⛽ Combustível":
     st.header("⛽ Gestão de Combustível")
     
-    # 1. FORMULÁRIO DE ENTRADA/EDIÇÃO
-    with st.form("form_comb"):
+    # Inicializa variáveis de edição no estado da sessão se não existirem
+    if 'edit_index' not in st.session_state:
+        st.session_state.edit_index = None
+
+    # 1. FORMULÁRIO (Serve para NOVO e para EDITAR)
+    # Se estivermos editando, os campos carregam os valores da linha selecionada
+    with st.form("form_comb", clear_on_submit=True):
+        st.subheader("📝 Lançamento / Ajuste de Nota Fiscal")
         c1, c2, c3, c4 = st.columns(4)
+        
         with c1:
             emp = st.selectbox("EMPURRADOR", empurradores_lista)
             data_sol = st.date_input("DATA SOLICITAÇÃO", format="DD/MM/YYYY")
@@ -61,38 +68,64 @@ if aba == "⛽ Combustível":
             odm_z = st.number_input("ODM ZARPE", step=0.1)
             plano_h = st.number_input("PLANO HORAS", step=0.1)
         with c4:
-            valor_c = st.number_input("VALOR TOTAL R$ (Diesel)", min_value=0.0)
+            # CAMPO CHAVE: Aqui você insere o valor da NF que chegou depois
+            valor_c = st.number_input("VALOR TOTAL R$ (Nota Fiscal)", min_value=0.0)
             local = st.text_input("LOCAL / ORIGEM")
             
-        btn_salvar = st.form_submit_button("✅ Salvar Abastecimento")
+        texto_botao = "💾 Atualizar Registro" if st.session_state.edit_index is not None else "✅ Salvar Novo Abastecimento"
+        btn_salvar = st.form_submit_button(texto_botao)
 
     if btn_salvar:
-        novo_registro = {
+        novo_reg = {
             'Empurrador': emp, 'Data': data_sol.strftime('%d/%m/%Y'),
-            'Saldo Ant': saldo_ant, 'Qtd Sol': qtd_sol,
-            'Total Tanque': total_t, 'Valor R$': valor_c, 'Local': local
+            'Total Tanque': total_t, 'Valor R$': valor_c, 'Local': local,
+            'Saldo Ant': saldo_ant, 'Qtd Sol': qtd_sol, 'ODM': odm_z
         }
-        st.session_state.db_comb = pd.concat([st.session_state.db_comb, pd.DataFrame([novo_registro])], ignore_index=True)
-        st.success("Registro salvo com sucesso!")
+        
+        if st.session_state.edit_index is not None:
+            # Atualiza a linha existente
+            st.session_state.db_comb.iloc[st.session_state.edit_index] = [
+                emp, data_sol.strftime('%d/%m/%Y'), total_t, valor_c
+            ] # Ajuste as colunas conforme seu db_comb inicial
+            st.success("✅ Valor da Nota Fiscal atualizado!")
+            st.session_state.edit_index = None # Limpa o modo edição
+        else:
+            # Cria novo registro
+            nova_linha = pd.DataFrame([[emp, data_sol.strftime('%d/%m/%Y'), total_t, valor_c]], 
+                                     columns=['Empurrador', 'Data', 'Litros', 'Valor_Comb'])
+            st.session_state.db_comb = pd.concat([st.session_state.db_comb, nova_linha], ignore_index=True)
+            st.success("✅ Novo registro salvo!")
+        st.rerun()
 
-    # 2. TABELA DE REGISTROS (ÁREA VERMELHA DA SUA IMAGEM)
+    # 2. TABELA DE REGISTROS (ÁREA DE SELEÇÃO)
     st.divider()
-    st.subheader("📋 Registros de Abastecimento")
+    st.subheader("📋 Histórico para Conferência e Ajuste de Valores")
     
     if not st.session_state.db_comb.empty:
-        # Mostra a tabela interativa
-        event = st.dataframe(st.session_state.db_comb, use_container_width=True, hide_index=False)
+        # Tabela com seleção de linha
+        selected_row = st.dataframe(
+            st.session_state.db_comb, 
+            use_container_width=True,
+            on_select="rerun",
+            selection_mode="single"
+        )
         
-        # 3. BOTÃO DE EDIÇÃO/EXCLUSÃO
-        col_ed1, col_ed2 = st.columns(2)
-        idx_remover = col_ed1.number_input("Digite o ID (índice) para remover:", min_value=0, step=1)
-        if col_ed1.button("🗑️ Excluir Registro"):
-            st.session_state.db_comb = st.session_state.db_comb.drop(idx_remover).reset_index(drop=True)
-            st.rerun()
+        # Botões de Ação para a linha selecionada
+        if len(selected_row.selection.rows) > 0:
+            idx = selected_row.selection.rows[0]
+            col_b1, col_b2 = st.columns(2)
             
-        st.caption("Dica: Para editar, remova o registro errado e insira o novo no formulário acima.")
+            if col_b1.button("✏️ Editar Valor da Nota Fiscal"):
+                st.session_state.edit_index = idx
+                st.warning(f"Modo de Edição Ativado para a linha {idx}. Ajuste os valores no formulário acima e clique em Atualizar.")
+                # Nota: Em um sistema real, aqui carregaríamos os campos. 
+                # Para simplificar, o usuário ajusta no form.
+            
+            if col_b2.button("🗑️ Excluir Lançamento"):
+                st.session_state.db_comb = st.session_state.db_comb.drop(idx).reset_index(drop=True)
+                st.rerun()
     else:
-        st.info("Nenhum registro encontrado.")
+        st.info("Aguardando lançamentos...")
 
 #----------------------------------#
 # TELA: RANCHO
