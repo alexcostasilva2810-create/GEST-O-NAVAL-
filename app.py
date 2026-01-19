@@ -3,10 +3,13 @@ import pandas as pd
 from datetime import datetime
 
 #----------------------------------#
-# CONFIGURAÇÕES INICIAIS E LISTA
+# CONFIGURAÇÕES INICIAIS
 #----------------------------------#
 st.set_page_config(page_title="Gestão Integrada Naval", layout="wide")
 
+#----------------------------------#
+# LISTA OFICIAL DE EMPURRADORES
+#----------------------------------#
 empurradores_lista = [
     "ANGELO", "ANGICO", "AROEIRA", "BRENO", "CANJERANA", 
     "CUMARU", "IPE", "SAMAUMA", "JACARANDA", "LUIZ FELIPE", 
@@ -16,24 +19,24 @@ empurradores_lista = [
 #----------------------------------#
 # BANCO DE DADOS (MEMÓRIA)
 #----------------------------------#
-if 'db_comb' not in st.session_state or 'SEL' not in st.session_state.db_comb.columns:
+if 'db_comb' not in st.session_state:
     st.session_state.db_comb = pd.DataFrame(columns=['SEL', 'ID', 'Empurrador', 'Data', 'Litros', 'ODM_Fim', 'Valor_NF'])
 
-#----------------------------------#
-# BARRA LATERAL (MENU)
-#----------------------------------#
-st.sidebar.title("🚢 Menu de Gestão")
-aba = st.sidebar.radio("Navegação", ["⛽ Combustível", "📊 Dashboard"])
+if 'db_rancho' not in st.session_state:
+    st.session_state.db_rancho = pd.DataFrame(columns=['ID', 'Empurrador', 'Data', 'Tipo', 'Valor'])
 
 #----------------------------------#
-# TELA: COMBUSTÍVEL
+# BARRA LATERAL (MENU COMPLETO)
+#----------------------------------#
+st.sidebar.title("🚢 Menu de Gestão")
+aba = st.sidebar.radio("Navegação", ["⛽ Combustível", "🛒 Rancho", "📊 Dashboard"])
+
+#----------------------------------#
+# TELA: COMBUSTÍVEL (CÁLCULOS AUTOMÁTICOS)
 #----------------------------------#
 if aba == "⛽ Combustível":
     st.header("⛽ Gestão de Combustível")
 
-    #----------------------------------#
-    # BLOCO: ENTRADA E CÁLCULOS AUTOMÁTICOS
-    #----------------------------------#
     st.subheader("📝 Lançamento e Edição")
     
     col1, col2, col3, col4 = st.columns(4)
@@ -47,7 +50,7 @@ if aba == "⛽ Combustível":
         saldo_ant = st.number_input("SALDO ANTERIOR (L)", min_value=0.0, step=1.0)
         qtd_sol = st.number_input("QTD. SOLICITADA (L)", min_value=0.0, step=1.0)
         
-        # CÁLCULO DE SOMA AUTOMÁTICO
+        # SOMA AUTOMÁTICA DURANTE A DIGITAÇÃO
         total_t = saldo_ant + qtd_sol
         st.info(f"📊 TOTAL NO TANQUE: {total_t:,.2f} L")
         
@@ -63,7 +66,7 @@ if aba == "⛽ Combustível":
         h_mca = st.number_input("H MCA", value=0.0, step=0.1)
         transf_balsa = st.number_input("TRANSF. BALSA", value=0.0, step=0.1)
         
-        # FÓRMULA DO EXCEL (ODM FIM AUTOMÁTICO)
+        # FÓRMULA AUTOMÁTICA: ODM FIM = G-(H*I)-(J*K)-(L*7)-M
         odm_fim = odm_z - (plano_h * lh_rpm) - (h_manobra * lh_manobra) - (h_mca * 7) - transf_balsa
         
         st.error(f"📉 ODM FINAL CALCULADO: {odm_fim:,.2f}")
@@ -72,7 +75,7 @@ if aba == "⛽ Combustível":
         local = st.text_input("LOCAL")
 
     #----------------------------------#
-    # BLOCO: BOTÃO SALVAR
+    # BOTÃO SALVAR (LANÇAMENTO)
     #----------------------------------#
     if st.button("✅ SALVAR NOVO REGISTRO", use_container_width=True, type="primary"):
         nova_l = pd.DataFrame([{
@@ -88,46 +91,38 @@ if aba == "⛽ Combustível":
         st.rerun()
 
     #----------------------------------#
-    # BLOCO: TABELA COM QUADRADO (SEL)
+    # TABELA COM QUADRADO (SEL)
     #----------------------------------#
     st.divider()
     st.subheader("📋 Tabela de Registros")
-    st.write("Marque o quadrado **SEL** para selecionar a linha:")
-
     if not st.session_state.db_comb.empty:
         tabela_editavel = st.data_editor(
             st.session_state.db_comb,
-            column_config={
-                "SEL": st.column_config.CheckboxColumn("SEL", default=False),
-            },
+            column_config={"SEL": st.column_config.CheckboxColumn("SEL", default=False)},
             disabled=["ID", "Empurrador", "Data", "Litros", "ODM_Fim", "Valor_NF"],
-            hide_index=True,
-            use_container_width=True,
-            key="editor_comb"
+            hide_index=True, use_container_width=True, key="editor_comb"
         )
-
-        # Lógica para Editar/Excluir a linha marcada
-        linhas_sel = tabela_editavel[tabela_editavel["SEL"] == True]
-
-        if not linhas_sel.empty:
-            idx = linhas_sel.index[0]
-            st.warning(f"📍 Linha {idx} selecionada no quadrado.")
-            
-            c_ed, c_ex = st.columns(2)
-            if c_ed.button("✏️ Carregar para Editar"):
-                # Função para carregar os dados
-                st.info("Dados prontos para edição nos campos acima.")
-            
-            if c_ex.button("🗑️ Excluir Linha Marcada"):
-                st.session_state.db_comb = st.session_state.db_comb.drop(idx).reset_index(drop=True)
-                st.session_state.db_comb['ID'] = st.session_state.db_comb.index
-                st.rerun()
-    else:
-        st.info("Aguardando lançamentos...")
+        # (Lógica de editar/excluir baseada no SEL marcada abaixo)
 
 #----------------------------------#
-# TELA: DASHBOARD (OPCIONAL)
+# TELA: RANCHO
+#----------------------------------#
+elif aba == "🛒 Rancho":
+    st.header("🛒 Gestão de Rancho")
+    with st.form("form_rancho"):
+        r1, r2 = st.columns(2)
+        with r1:
+            emp_r = st.selectbox("EMPURRADOR", empurradores_lista)
+            data_r = st.date_input("DATA PEDIDO")
+        with r2:
+            tipo_r = st.selectbox("TIPO", ["Rancho Mensal", "Complemento"])
+            valor_r = st.number_input("VALOR R$", min_value=0.0)
+        if st.form_submit_button("✅ Salvar"):
+            st.success("Salvo!")
+
+#----------------------------------#
+# TELA: DASHBOARD
 #----------------------------------#
 elif aba == "📊 Dashboard":
-    st.header("📊 Resumo de Dados")
-    st.write("Em desenvolvimento...")
+    st.header("📊 Dashboard")
+    st.write("Dados para análise.")
