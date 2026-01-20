@@ -31,12 +31,6 @@ st.sidebar.title("🚢 Menu de Gestão")
 
 # ... (restante do seu código igual)
 
-#----------------------------------#
-# MENU LATERAL
-#----------------------------------#
-st.sidebar.title("🚢 Menu de Gestão")
-aba = st.sidebar.radio("Navegação", ["⛽ Abastecimento", "📝 Calculo de mémoria", "🛒 Rancho", "📊 Dashboard"])
-
 #---------------------------------------------------------#
 # BLOCO 1 - ABASTECIMENTO (COM TRAVA DE EDIÇÃO E SALVAMENTO)
 #---------------------------------------------------------#
