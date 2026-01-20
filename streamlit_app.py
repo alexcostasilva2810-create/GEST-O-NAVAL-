@@ -1,14 +1,17 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime
+from PIL import Image
+
+img = Image.open("icone ZION.png")
 
 #----------------------------------#
 # CONFIGURAÇÕES INICIAIS (ATUALIZADO)
 #----------------------------------#
 # 1. Adicionamos a sua logo na aba do navegador
 st.set_page_config(
-    page_title="Zion - Gestão Integrada Naval", 
-    page_icon="icone ZION.png", # <--- Nome do arquivo que você subiu no GitHub
+    page_title="Zion - Gestão",
+    page_icon=img,
     layout="wide"
 )
 
