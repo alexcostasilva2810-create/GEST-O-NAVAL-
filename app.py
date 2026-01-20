@@ -8,7 +8,7 @@ from datetime import datetime
 # 1. Adicionamos a sua logo na aba do navegador
 st.set_page_config(
     page_title="Zion - Gestão Integrada Naval", 
-    page_icon="logo_zion.png", # <--- Nome do arquivo que você subiu no GitHub
+    page_icon="icone ZION.png", # <--- Nome do arquivo que você subiu no GitHub
     layout="wide"
 )
 
@@ -26,7 +26,7 @@ st.markdown(hide_style, unsafe_allow_html=True)
 # MENU LATERAL (COM SUA LOGO)
 #----------------------------------#
 # 3. Colocamos a sua logo no topo do menu lateral para reforçar sua marca
-st.sidebar.image("logo_zion.png", use_container_width=True)
+st.sidebar.image("icone ZION.png", use_container_width=True)
 st.sidebar.title("🚢 Menu de Gestão")
 
 # ... (restante do seu código igual)
