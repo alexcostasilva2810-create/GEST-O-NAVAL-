@@ -3,14 +3,33 @@ import pandas as pd
 from datetime import datetime
 
 #----------------------------------#
-# CONFIGURAÇÕES INICIAIS
+# CONFIGURAÇÕES INICIAIS (ATUALIZADO)
 #----------------------------------#
-st.set_page_config(page_title="Gestão Integrada Naval", layout="wide")
+# 1. Adicionamos a sua logo na aba do navegador
+st.set_page_config(
+    page_title="Zion - Gestão Integrada Naval", 
+    page_icon="logo_zion.png", # <--- Nome do arquivo que você subiu no GitHub
+    layout="wide"
+)
 
-empurradores_lista = ["ANGELO", "ANGICO", "AROEIRA", "BRENO", "CANJERANA", "CUMARU", "IPE", "SAMAUMA", "JACARANDA", "LUIZ FELIPE", "QUARUBA", "TIMBORANA", "JATOBA"]
+# 2. Injetamos o CSS para esconder o menu "Made with Streamlit", o topo e o rodapé
+hide_style = """
+    <style>
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    header {visibility: hidden;}
+    </style>
+"""
+st.markdown(hide_style, unsafe_allow_html=True)
 
-if 'db_comb' not in st.session_state:
-    st.session_state.db_comb = pd.DataFrame()
+#----------------------------------#
+# MENU LATERAL (COM SUA LOGO)
+#----------------------------------#
+# 3. Colocamos a sua logo no topo do menu lateral para reforçar sua marca
+st.sidebar.image("logo_zion.png", use_container_width=True)
+st.sidebar.title("🚢 Menu de Gestão")
+
+# ... (restante do seu código igual)
 
 #----------------------------------#
 # MENU LATERAL
